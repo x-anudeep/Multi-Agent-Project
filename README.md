@@ -224,6 +224,7 @@ Fleetbase is included as a Git submodule at `external/fleetbase`.
 
 ```bash
 npm run fleetbase:start
+npm run fleetbase:setup
 npm run fleetbase:status
 ```
 

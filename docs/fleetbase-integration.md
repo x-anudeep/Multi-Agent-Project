@@ -29,7 +29,7 @@ docker --version
 docker compose version
 ```
 
-2. Initialize Fleetbase:
+2. Start Fleetbase containers:
 
 ```bash
 npm run fleetbase:start
@@ -38,42 +38,52 @@ npm run fleetbase:start
 This initializes the top-level Fleetbase submodule without trying to clone
 Fleetbase's optional nested package submodules over SSH.
 
-3. Create Fleetbase environment files:
+3. Run the first-time Fleetbase setup:
 
 ```bash
-cp external/fleetbase/api/.env.example external/fleetbase/api/.env
-cp external/fleetbase/docker-compose.override.yml.example external/fleetbase/docker-compose.override.yml
+npm run fleetbase:setup
 ```
 
-The command also creates these files for you if they are missing.
+This command:
 
-4. Start Fleetbase if it is not already running:
+- creates missing Fleetbase environment files
+- sets a local Fleetbase app key
+- uses `127.0.0.1` instead of `localhost` to avoid Fleetbase's local domain bug
+- stores MySQL data in a Docker named volume instead of a macOS bind mount
+- creates the required `fleetbase` and `fleetbase_storefront` databases
+- runs Fleetbase migrations and seeders
+- creates a local admin account
+- creates a Fleetbase API key for this backend
+- writes that API key to this project's `.env`
 
-```bash
-npm run fleetbase:start
-```
-
-5. Open Fleetbase Console:
+4. Open Fleetbase Console:
 
 ```text
 http://localhost:4200
 ```
 
-6. Configure this backend to talk to Fleetbase in `.env`:
+Local Fleetbase login:
+
+```text
+Email: admin@example.com
+Password: Fleetbase2026!
+```
+
+5. Confirm this backend is configured in `.env`:
 
 ```env
 FLEETBASE_BASE_URL=http://localhost:8000
-FLEETBASE_API_KEY=your-fleetbase-api-token
-FLEETBASE_ORDER_ENDPOINT=/orders
+FLEETBASE_API_KEY=flb_live_...
+FLEETBASE_ORDER_ENDPOINT=/v1/orders
 ```
 
-7. Start this project:
+6. Start this project:
 
 ```bash
 npm start
 ```
 
-8. Open the dark operations console:
+7. Open the dark operations console:
 
 ```text
 http://localhost:3000
@@ -104,6 +114,7 @@ Triage Agent
 
 ```bash
 npm run fleetbase:start
+npm run fleetbase:setup
 npm run fleetbase:status
 npm run fleetbase:logs
 npm run fleetbase:stop
@@ -116,7 +127,7 @@ resources. If your local Fleetbase instance exposes order creation at a route
 different from `/orders`, change:
 
 ```env
-FLEETBASE_ORDER_ENDPOINT=/orders
+FLEETBASE_ORDER_ENDPOINT=/v1/orders
 ```
 
 The backend does not hard-code a route beyond this default, so you can align it

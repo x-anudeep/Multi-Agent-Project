@@ -8,7 +8,7 @@ class FleetbaseClient {
   }
 
   isConfigured() {
-    return Boolean(this.baseUrl && this.apiKey);
+    return Boolean(this.baseUrl && this.apiKey && this.apiKey !== "replace-me");
   }
 
   url(path) {
@@ -18,6 +18,7 @@ class FleetbaseClient {
   headers() {
     return {
       "Content-Type": "application/json",
+      "User-Agent": "@fleetbase/sdk;node",
       Authorization: `Bearer ${this.apiKey}`
     };
   }

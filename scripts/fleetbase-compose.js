@@ -36,6 +36,26 @@ copyIfMissing(
   path.join(cwd, "docker-compose.override.yml")
 );
 
+const overridePath = path.join(cwd, "docker-compose.override.yml");
+if (fs.existsSync(overridePath)) {
+  let override = fs.readFileSync(overridePath, "utf8");
+  override = override.replace("CONSOLE_HOST: http://localhost:4200", "CONSOLE_HOST: http://127.0.0.1:4200");
+  if (!override.includes("APP_URL: http://127.0.0.1:8000")) {
+    override = override.replace(
+      "CONSOLE_HOST: http://127.0.0.1:4200",
+      "CONSOLE_HOST: http://127.0.0.1:4200\n      APP_URL: http://127.0.0.1:8000\n      SESSION_DOMAIN: 127.0.0.1"
+    );
+  }
+  if (!override.includes("fleetbase_database:/var/lib/mysql")) {
+    override = override.replace(
+      "services:\n",
+      "services:\n  database:\n    volumes:\n      - ./docker/database/:/docker-entrypoint-initdb.d/\n      - fleetbase_database:/var/lib/mysql\n\n"
+    );
+    override = `${override.trimEnd()}\n\nvolumes:\n  fleetbase_database:\n`;
+  }
+  fs.writeFileSync(overridePath, override);
+}
+
 const result = spawnSync(compose.command, args, {
   cwd,
   stdio: "inherit"
