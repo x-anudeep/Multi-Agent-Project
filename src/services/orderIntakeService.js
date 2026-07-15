@@ -8,7 +8,7 @@
 const { triage } = require("./agentService");
 const { createOrder } = require("./orderService");
 const { normalizeShipment, validateNormalizedShipment } = require("./shipmentNormalizer");
-const { getPool } = require("../db/pool");
+const ordersRepository = require("../db/repositories/ordersRepository");
 const reviewQueueRepository = require("../db/repositories/reviewQueueRepository");
 
 /**
@@ -205,12 +205,6 @@ function extractShipmentFromTriage(triageResult) {
  */
 async function checkForDuplicate(shipmentData, source, metadata) {
   try {
-    const db = getPool();
-    if (!db) {
-      console.warn("Database not configured. Skipping duplicate check.");
-      return null;
-    }
-
     const customerEmail = metadata.email || metadata.senderEmail;
     const customerPhone = metadata.phone || metadata.callerPhone;
 
@@ -219,30 +213,23 @@ async function checkForDuplicate(shipmentData, source, metadata) {
       return null;
     }
 
-    // Query for existing orders from same customer within 1 hour
-    const oneHourAgo = new Date(Date.now() - 3600000);
+    // shipmentNormalizer doesn't persist a top-level phone column, so phone
+    // matching reads it back out of rawRequest.metadata instead.
+    const oneHourAgo = Date.now() - 3600000;
+    const orders = await ordersRepository.listOrders();
 
-    let query = `
-      SELECT id FROM orders
-      WHERE created_at > $1
-    `;
-    const params = [oneHourAgo];
+    const duplicate = orders.find((order) => {
+      if (new Date(order.createdAt).getTime() <= oneHourAgo) return false;
 
-    if (customerEmail) {
-      query += ` AND customer_email = $${params.length + 1}`;
-      params.push(customerEmail);
-    } else if (customerPhone) {
-      query += ` AND customer_phone = $${params.length + 1}`;
-      params.push(customerPhone);
-    }
+      if (customerEmail && order.customerEmail === customerEmail) return true;
 
-    query += ` LIMIT 1`;
+      const orderPhone = order.rawRequest?.metadata?.callerPhone || order.rawRequest?.metadata?.phone;
+      return Boolean(customerPhone) && orderPhone === customerPhone;
+    });
 
-    const result = await db.query(query, params);
-
-    if (result.rows.length > 0) {
-      console.log("Duplicate found:", result.rows[0].id);
-      return result.rows[0].id;
+    if (duplicate) {
+      console.log("Duplicate found:", duplicate.id);
+      return duplicate.id;
     }
 
     return null;
