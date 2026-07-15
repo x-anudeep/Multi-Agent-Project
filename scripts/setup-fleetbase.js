@@ -103,14 +103,14 @@ if (!$user) {
     $user = \Fleetbase\Models\User::create([
         'name' => 'Local Admin',
         'email' => 'admin@example.com',
-        'password' => \Illuminate\Support\Facades\Hash::make('Fleetbase2026!'),
+        'password' => 'Fleetbase2026!',
         'email_verified_at' => now(),
         'status' => 'active',
         'type' => 'admin',
         'company_uuid' => $company->uuid,
     ]);
 }
-$user->password = \Illuminate\Support\Facades\Hash::make('Fleetbase2026!');
+$user->password = 'Fleetbase2026!';
 $user->email_verified_at = now();
 $user->status = 'active';
 $user->type = 'admin';
