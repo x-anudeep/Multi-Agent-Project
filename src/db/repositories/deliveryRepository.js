@@ -100,6 +100,32 @@ async function listDeliveryLogsForOrder(orderId) {
   return result.rows.map(normalizeRow);
 }
 
+/**
+ * Find the delivery log for a quote email by the Message-ID Nodemailer
+ * assigned when it was sent, so an incoming reply can be matched back to
+ * the order/quote it's responding to via In-Reply-To/References.
+ * @param {string} messageId
+ * @returns {Promise<Object|null>}
+ */
+async function findDeliveryLogBySentMessageId(messageId) {
+  if (!messageId) return null;
+
+  const pool = getPool();
+  if (!pool) {
+    return (
+      Array.from(memory.deliveryLogs.values()).find(
+        (log) => log.metadata?.sentMessageId === messageId
+      ) || null
+    );
+  }
+
+  const result = await pool.query(
+    "SELECT * FROM delivery_logs WHERE metadata->>'sentMessageId' = $1 ORDER BY created_at DESC LIMIT 1",
+    [messageId]
+  );
+  return normalizeRow(result.rows[0] || null);
+}
+
 async function listAllDeliveryLogs() {
   const pool = getPool();
   if (!pool) {
@@ -151,6 +177,7 @@ async function updateDeliveryLog(id, changes) {
 module.exports = {
   createDeliveryLog,
   findDeliveryLogById,
+  findDeliveryLogBySentMessageId,
   listDeliveryLogsForOrder,
   listAllDeliveryLogs,
   updateDeliveryLog

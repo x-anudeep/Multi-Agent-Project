@@ -248,7 +248,11 @@ async function pollEmails(onNewEmail) {
                   text: parsed.text || "",
                   html: parsed.html || "",
                   timestamp: parsed.date,
-                  source: "outlook_imap"
+                  source: "outlook_imap",
+                  // Present only when this message is a reply, letting
+                  // quoteReplyService match it back to a sent quote.
+                  inReplyTo: parsed.inReplyTo || null,
+                  references: parsed.references || null
                 };
 
                 console.log("Processing email:", {

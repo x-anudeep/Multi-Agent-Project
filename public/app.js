@@ -129,11 +129,14 @@ function renderOrders() {
         <div>
           <strong>${order.customerName || "Unknown Customer"}</strong>
           <p>${orderSubtitle(order)}</p>
-          <p>Status: ${order.status || "new"}</p>
+          <p>Status: ${order.status || "new"}${order.verified ? " / Verified" : ""}</p>
         </div>
         <div class="row-actions">
           <button class="secondary-button" data-action="select" data-id="${order.id}" type="button">View</button>
           <button class="primary-button" data-action="quote" data-id="${order.id}" type="button">Run Quote</button>
+          <button class="secondary-button" data-action="toggle-verified" data-id="${order.id}" data-verified="${Boolean(order.verified)}" type="button">
+            ${order.verified ? "Unverify" : "Verify"}
+          </button>
         </div>
       </article>
     `)
@@ -216,8 +219,26 @@ function renderReviewQueue(entries) {
   elements.reviewQueueList.className = "orders-list";
   elements.reviewQueueList.innerHTML = entries
     .map((entry) => {
-      const normalized = entry.triageResult?.triage?.normalizedShipment || {};
       const isPending = entry.status === "pending";
+
+      if (entry.reason === "customer_query") {
+        return `
+          <article class="order-row review-row" data-review-id="${entry.id}">
+            <div>
+              <strong>Customer query</strong>
+              <p>${truncate(entry.rawData?.text, 140)}</p>
+              <p>From: ${entry.rawData?.from || "-"} / Status: ${entry.status} / ${formatDate(entry.createdAt)}</p>
+            </div>
+            ${
+              isPending
+                ? `<div class="row-actions"><button class="primary-button" data-action="resolve-query" data-id="${entry.id}" type="button">Resolve</button></div>`
+                : `<span class="pill">${entry.status}</span>`
+            }
+          </article>
+        `;
+      }
+
+      const normalized = entry.triageResult?.triage?.normalizedShipment || {};
 
       return `
         <article class="order-row review-row" data-review-id="${entry.id}">
@@ -308,6 +329,23 @@ async function rejectReviewEntry(reviewId) {
   await api(`/api/orders/review-queue/${reviewId}/reject`, { method: "POST" });
   showToast("Review rejected");
   await loadMonitoring();
+}
+
+async function resolveQuery(reviewId) {
+  await api(`/api/orders/review-queue/${reviewId}/resolve`, { method: "POST" });
+  showToast("Query resolved");
+  await loadMonitoring();
+}
+
+async function toggleVerified(orderId, currentVerified) {
+  const updated = await api(`/api/orders/${orderId}/verify`, {
+    method: "POST",
+    body: JSON.stringify({ verified: !currentVerified })
+  });
+  const index = state.orders.findIndex((order) => order.id === orderId);
+  if (index !== -1) state.orders[index] = updated;
+  renderOrders();
+  showToast(updated.verified ? "Order verified" : "Order unverified");
 }
 
 async function loadOrders() {
@@ -408,6 +446,7 @@ elements.ordersList.addEventListener("click", async (event) => {
   try {
     if (action === "select") renderQuote(id);
     if (action === "quote") await runQuote(id);
+    if (action === "toggle-verified") await toggleVerified(id, button.dataset.verified === "true");
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -425,6 +464,7 @@ elements.reviewQueueList.addEventListener("click", async (event) => {
   try {
     if (action === "approve-review") await approveReviewEntry(id, row);
     if (action === "reject-review") await rejectReviewEntry(id);
+    if (action === "resolve-query") await resolveQuery(id);
   } catch (error) {
     showToast(error.message);
     button.disabled = false;

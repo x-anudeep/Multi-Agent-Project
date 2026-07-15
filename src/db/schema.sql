@@ -14,9 +14,14 @@ CREATE TABLE IF NOT EXISTS orders (
   raw_request JSONB NOT NULL DEFAULT '{}'::jsonb,
   normalized_request JSONB NOT NULL DEFAULT '{}'::jsonb,
   fleetbase_order_id TEXT,
+  verified BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Safe to re-run against a database that already has the orders table
+-- from before this column existed.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS quotes (
   id UUID PRIMARY KEY,

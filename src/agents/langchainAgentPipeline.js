@@ -53,7 +53,16 @@ function heuristicExtractShipment(text) {
 const EXTRACTION_SYSTEM_PROMPT =
   "Extract logistics shipment details from the text. Return only JSON with customer.name, customer.email, shipment.pickup, shipment.dropoff, shipment.pickupDate, shipment.weight, shipment.volume, shipment.commodity. Use empty strings for unknown fields.";
 
-async function extractShipmentWithChatModel({ apiKey, model, baseUrl }, text) {
+const REPLY_CLASSIFICATION_SYSTEM_PROMPT =
+  "Classify the customer's email reply to a shipment quote. Respond with exactly one word: " +
+  "CONFIRMED if they clearly agree to proceed with the quote, or QUERY if they have questions, " +
+  "objections, want changes, or the reply is unclear or ambiguous. When in doubt, respond QUERY.";
+
+/**
+ * Call a single OpenAI-compatible chat model and return its raw text output.
+ * @returns {Promise<string|null>} null on missing key or any failure
+ */
+async function callChatModel({ apiKey, model, baseUrl }, { systemPrompt, humanPrompt, humanInput }) {
   if (!apiKey) return null;
 
   try {
@@ -69,40 +78,91 @@ async function extractShipmentWithChatModel({ apiKey, model, baseUrl }, text) {
     });
 
     const prompt = ChatPromptTemplate.fromMessages([
-      ["system", EXTRACTION_SYSTEM_PROMPT],
-      ["human", "{text}"]
+      ["system", systemPrompt],
+      ["human", humanPrompt]
     ]);
 
-    const output = await prompt.pipe(chatModel).pipe(new StringOutputParser()).invoke({ text });
-    return parseJsonFromText(output);
+    return await prompt.pipe(chatModel).pipe(new StringOutputParser()).invoke(humanInput);
   } catch (error) {
     return null;
   }
 }
 
-async function extractShipmentWithOpenAI(text) {
-  return extractShipmentWithChatModel({ apiKey: env.openai.apiKey, model: env.openai.model }, text);
-}
+/**
+ * Try OpenAI first, then Groq, returning the first successful result along
+ * with which provider produced it.
+ */
+async function withLlmFallback(callback) {
+  const openAiOutput = await callback({ apiKey: env.openai.apiKey, model: env.openai.model });
+  if (openAiOutput) return { source: "langchain_openai", output: openAiOutput };
 
-async function extractShipmentWithGroq(text) {
-  return extractShipmentWithChatModel(
-    { apiKey: env.groq.apiKey, model: env.groq.model, baseUrl: env.groq.baseUrl },
-    text
-  );
+  const groqOutput = await callback({ apiKey: env.groq.apiKey, model: env.groq.model, baseUrl: env.groq.baseUrl });
+  if (groqOutput) return { source: "langchain_groq", output: groqOutput };
+
+  return null;
 }
 
 async function extractShipmentFromText(text) {
-  const openAiExtracted = await extractShipmentWithOpenAI(text);
-  if (openAiExtracted) {
-    return { source: "langchain_openai", payload: openAiExtracted };
-  }
+  const llmResult = await withLlmFallback((credentials) =>
+    callChatModel(credentials, {
+      systemPrompt: EXTRACTION_SYSTEM_PROMPT,
+      humanPrompt: "{text}",
+      humanInput: { text }
+    }).then((output) => parseJsonFromText(output))
+  );
 
-  const groqExtracted = await extractShipmentWithGroq(text);
-  if (groqExtracted) {
-    return { source: "langchain_groq", payload: groqExtracted };
+  if (llmResult) {
+    return { source: llmResult.source, payload: llmResult.output };
   }
 
   return { source: "langchain_heuristic", payload: heuristicExtractShipment(text) };
+}
+
+const CONFIRMATION_KEYWORDS = [
+  "confirm",
+  "confirmed",
+  "yes",
+  "sounds good",
+  "go ahead",
+  "proceed",
+  "accept",
+  "approved",
+  "looks good",
+  "agree",
+  "book it",
+  "let's do it",
+  "lets do it"
+];
+
+function heuristicClassifyReply(replyText) {
+  const lower = String(replyText || "").toLowerCase();
+  const hasConfirmationKeyword = CONFIRMATION_KEYWORDS.some((keyword) => lower.includes(keyword));
+  const hasQuestion = lower.includes("?");
+  // Default to "query" whenever uncertain -- safer to route to a human
+  // than to silently treat an ambiguous reply as a confirmed order.
+  return hasConfirmationKeyword && !hasQuestion ? "confirmed" : "query";
+}
+
+/**
+ * Classify a customer's reply to a quote email as "confirmed" or "query".
+ * @param {string} replyText
+ * @returns {Promise<"confirmed"|"query">}
+ */
+async function classifyQuoteReply(replyText) {
+  const llmResult = await withLlmFallback((credentials) =>
+    callChatModel(credentials, {
+      systemPrompt: REPLY_CLASSIFICATION_SYSTEM_PROMPT,
+      humanPrompt: "{replyText}",
+      humanInput: { replyText }
+    }).then((output) => {
+      const normalized = output?.trim().toUpperCase();
+      if (normalized === "CONFIRMED") return "confirmed";
+      if (normalized === "QUERY") return "query";
+      return null; // unrecognized output; fall through to the next provider
+    })
+  );
+
+  return llmResult?.output || heuristicClassifyReply(replyText);
 }
 
 async function runLangChainTriage(input) {
@@ -173,5 +233,6 @@ async function runLangChainQuotePipeline(order) {
 module.exports = {
   runLangChainTriage,
   runLangChainQuotePipeline,
-  extractShipmentFromText
+  extractShipmentFromText,
+  classifyQuoteReply
 };

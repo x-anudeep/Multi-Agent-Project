@@ -24,6 +24,7 @@ function normalizeRow(row) {
     rawRequest: row.raw_request ?? row.rawRequest ?? {},
     normalizedRequest: row.normalized_request ?? row.normalizedRequest ?? {},
     fleetbaseOrderId: row.fleetbase_order_id ?? row.fleetbaseOrderId,
+    verified: Boolean(row.verified),
     createdAt: row.created_at ?? row.createdAt,
     updatedAt: row.updated_at ?? row.updatedAt
   };
@@ -65,9 +66,9 @@ async function createOrder(order) {
     `INSERT INTO orders (
       id, customer_name, customer_email, origin, destination, pickup_date,
       delivery_date, weight_kg, volume_m3, cargo_type, status, raw_request,
-      normalized_request, fleetbase_order_id
+      normalized_request, fleetbase_order_id, verified
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
     ) RETURNING *`,
     [
       id,
@@ -83,7 +84,8 @@ async function createOrder(order) {
       order.status || "new",
       order.rawRequest || {},
       order.normalizedRequest || {},
-      order.fleetbaseOrderId || null
+      order.fleetbaseOrderId || null,
+      Boolean(order.verified)
     ]
   );
 
@@ -137,6 +139,7 @@ async function updateOrder(id, changes) {
       raw_request = $12,
       normalized_request = $13,
       fleetbase_order_id = $14,
+      verified = $15,
       updated_at = NOW()
     WHERE id = $1 RETURNING *`,
     [
@@ -153,7 +156,8 @@ async function updateOrder(id, changes) {
       updated.status,
       updated.rawRequest || {},
       updated.normalizedRequest || {},
-      updated.fleetbaseOrderId || null
+      updated.fleetbaseOrderId || null,
+      Boolean(updated.verified)
     ]
   );
 

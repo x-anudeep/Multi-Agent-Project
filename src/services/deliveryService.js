@@ -73,7 +73,13 @@ async function sendQuotePdf(orderId, quoteId) {
     attemptCount: (deliveryLog.attemptCount || 0) + 1,
     lastAttemptAt: now,
     lastError: emailResult.success ? null : emailResult.reason || emailResult.error || null,
-    deliveredAt: emailResult.success ? now : null
+    deliveredAt: emailResult.success ? now : null,
+    // Persisted so a later customer reply can be matched back to this
+    // quote via its In-Reply-To/References header.
+    metadata: {
+      ...deliveryLog.metadata,
+      ...(emailResult.messageId ? { sentMessageId: emailResult.messageId } : {})
+    }
   });
 
   return { deliveryLog: updated, emailResult, pdfPath: filePath };

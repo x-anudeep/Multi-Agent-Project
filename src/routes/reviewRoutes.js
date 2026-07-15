@@ -8,5 +8,6 @@ router.get("/:reviewId", reviewController.getReviewEntry);
 router.post("/:reviewId/approve", reviewController.approveReviewEntry);
 router.post("/:reviewId/reject", reviewController.rejectReviewEntry);
 router.post("/:reviewId/send-now", reviewController.sendNow);
+router.post("/:reviewId/resolve", reviewController.resolveCustomerQuery);
 
 module.exports = router;

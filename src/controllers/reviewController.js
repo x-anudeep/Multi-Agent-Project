@@ -45,10 +45,20 @@ async function sendNow(req, res, next) {
   }
 }
 
+async function resolveCustomerQuery(req, res, next) {
+  try {
+    const entry = await reviewService.resolveCustomerQuery(req.params.reviewId, req.body?.notes);
+    res.json({ data: entry });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   listReviewQueue,
   getReviewEntry,
   approveReviewEntry,
   rejectReviewEntry,
-  sendNow
+  sendNow,
+  resolveCustomerQuery
 };

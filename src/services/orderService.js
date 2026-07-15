@@ -47,8 +47,21 @@ async function getOrder(id) {
   return order;
 }
 
+/**
+ * Mark an order as reviewed (or not) by a human. Purely a review-tracking
+ * flag -- independent of Fleetbase sync, which still happens automatically
+ * at order creation regardless of this flag.
+ * @param {string} id
+ * @param {boolean} verified
+ */
+async function setVerified(id, verified) {
+  await getOrder(id);
+  return ordersRepository.updateOrder(id, { verified: Boolean(verified) });
+}
+
 module.exports = {
   createOrder,
   listOrders,
-  getOrder
+  getOrder,
+  setVerified
 };

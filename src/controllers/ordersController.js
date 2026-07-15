@@ -27,8 +27,18 @@ async function getOrder(req, res, next) {
   }
 }
 
+async function setVerified(req, res, next) {
+  try {
+    const order = await orderService.setVerified(req.params.id, req.body?.verified);
+    res.json({ data: order });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   createOrder,
   listOrders,
-  getOrder
+  getOrder,
+  setVerified
 };

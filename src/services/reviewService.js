@@ -110,6 +110,28 @@ async function rejectReviewEntry(reviewId, notes) {
 }
 
 /**
+ * Resolve a customer_query ticket -- e.g. after a human has replied to the
+ * customer's question directly. Unlike approve/reject, this never creates
+ * an order: for these tickets the order already exists (the ticket was
+ * raised from a reply to a quote already sent for it).
+ * @param {string} reviewId
+ * @param {string} [notes]
+ */
+async function resolveCustomerQuery(reviewId, notes) {
+  const entry = await getReviewEntry(reviewId);
+  if (entry.status !== "pending") {
+    throw badRequest(`Review entry ${reviewId} has already been ${entry.status}`);
+  }
+
+  return reviewQueueRepository.updateReviewEntry(reviewId, {
+    status: "resolved",
+    reviewedAt: new Date().toISOString(),
+    reviewedBy: "manual_reviewer",
+    reviewNotes: notes || null
+  });
+}
+
+/**
  * Retry/force delivery for an approved entry's order. Approving an entry
  * already auto-generates (and, if approved, auto-sends) a quote, so this is
  * for retrying a failed send or generating one if that step didn't run.
@@ -137,5 +159,6 @@ module.exports = {
   getReviewEntry,
   approveReviewEntry,
   rejectReviewEntry,
+  resolveCustomerQuery,
   sendNow
 };

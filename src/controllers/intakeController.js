@@ -7,6 +7,7 @@
 
 const whisperService = require("../../automation/speech_processing/whisperService");
 const orderIntakeService = require("../services/orderIntakeService");
+const quoteReplyService = require("../services/quoteReplyService");
 const imapPoller = require("../../automation/email_parser/imapPoller");
 const { getPool } = require("../db/pool");
 
@@ -111,6 +112,18 @@ async function startEmailPolling(req, res, next) {
     // Define callback for when new email is found
     const onNewEmail = async (emailData) => {
       try {
+        // A reply to a quote we sent takes a completely different path
+        // (confirm the order, or raise a review ticket) -- it should never
+        // be run back through fresh-intake extraction/dedup.
+        const replyResult = await quoteReplyService.processIncomingEmail(emailData);
+        if (replyResult) {
+          console.log("Quote reply processed:", {
+            classification: replyResult.classification,
+            orderId: replyResult.order?.id || replyResult.reviewEntry?.orderId
+          });
+          return;
+        }
+
         // Check for duplicate before processing
         const isDuplicate = await imapPoller.isDuplicateEmail(
           emailData.messageId,
