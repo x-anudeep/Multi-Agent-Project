@@ -212,6 +212,16 @@ async function listQuotesByOrderId(orderId) {
   return result.rows.map(normalizeQuoteRow);
 }
 
+async function findQuoteById(id) {
+  const pool = getPool();
+  if (!pool) {
+    return memory.quotes.get(id) || null;
+  }
+
+  const result = await pool.query("SELECT * FROM quotes WHERE id = $1", [id]);
+  return normalizeQuoteRow(result.rows[0] || null);
+}
+
 module.exports = {
   createOrder,
   listOrders,
@@ -219,5 +229,6 @@ module.exports = {
   updateOrder,
   createQuote,
   listQuotesByOrderId,
+  findQuoteById,
   memory
 };

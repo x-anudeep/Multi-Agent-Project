@@ -1,0 +1,125 @@
+/**
+ * Manual Review Service
+ *
+ * Handles the human-in-the-loop workflow for intake attempts that triage
+ * flagged as low-confidence or incomplete (order_review_queue).
+ */
+
+const reviewQueueRepository = require("../db/repositories/reviewQueueRepository");
+const { createOrder } = require("./orderService");
+const quoteService = require("./quoteService");
+const deliveryService = require("./deliveryService");
+
+function notFound(message) {
+  const error = new Error(message);
+  error.status = 404;
+  return error;
+}
+
+function badRequest(message) {
+  const error = new Error(message);
+  error.status = 400;
+  return error;
+}
+
+async function getReviewEntry(reviewId) {
+  const entry = await reviewQueueRepository.findReviewEntryById(reviewId);
+  if (!entry) throw notFound(`Review entry ${reviewId} not found`);
+  return entry;
+}
+
+/**
+ * List review queue entries, optionally filtered by status.
+ * @param {string} [status]
+ */
+async function listReviewQueue(status) {
+  return reviewQueueRepository.listReviewQueue(status ? { status } : {});
+}
+
+/**
+ * Approve a review entry: create the order from the (human-corrected)
+ * shipment details and link it back to the review entry.
+ * @param {string} reviewId
+ * @param {Object} overrides - Corrected/completed shipment + customer fields
+ */
+async function approveReviewEntry(reviewId, overrides = {}) {
+  const entry = await getReviewEntry(reviewId);
+  if (entry.status !== "pending") {
+    throw badRequest(`Review entry ${reviewId} has already been ${entry.status}`);
+  }
+
+  const rawData = entry.rawData || {};
+  const metadata = rawData.metadata || {};
+
+  const order = await createOrder({
+    customer: {
+      name: overrides.customerName || "Unknown Customer",
+      email: overrides.customerEmail || metadata.email || metadata.senderEmail || ""
+    },
+    shipment: {
+      pickup: overrides.pickup || "",
+      dropoff: overrides.dropoff || "",
+      pickupDate: overrides.pickupDate || new Date().toISOString().split("T")[0],
+      weight: overrides.weight || "",
+      volume: overrides.volume || "",
+      commodity: overrides.commodity || "general"
+    },
+    metadata: {
+      source: rawData.source,
+      reviewId,
+      ...metadata
+    }
+  });
+
+  const updated = await reviewQueueRepository.updateReviewEntry(reviewId, {
+    status: "approved",
+    reviewedAt: new Date().toISOString(),
+    reviewedBy: overrides.reviewedBy || "manual_reviewer",
+    orderId: order.id
+  });
+
+  return { order, reviewEntry: updated };
+}
+
+/**
+ * Reject a review entry: no order is created.
+ * @param {string} reviewId
+ * @param {string} [notes]
+ */
+async function rejectReviewEntry(reviewId, notes) {
+  const entry = await getReviewEntry(reviewId);
+  if (entry.status !== "pending") {
+    throw badRequest(`Review entry ${reviewId} has already been ${entry.status}`);
+  }
+
+  return reviewQueueRepository.updateReviewEntry(reviewId, {
+    status: "rejected",
+    reviewedAt: new Date().toISOString(),
+    reviewedBy: "manual_reviewer",
+    reviewNotes: notes || null
+  });
+}
+
+/**
+ * Generate a quote for an approved entry's order and email the PDF now.
+ * @param {string} reviewId
+ */
+async function sendNow(reviewId) {
+  const entry = await getReviewEntry(reviewId);
+  if (entry.status !== "approved" || !entry.orderId) {
+    throw badRequest("Review entry must be approved (with an order) before it can be sent");
+  }
+
+  const quoteResult = await quoteService.generateQuote(entry.orderId);
+  const delivery = await deliveryService.sendQuotePdf(entry.orderId, quoteResult.quote.id);
+
+  return { quote: quoteResult.quote, delivery };
+}
+
+module.exports = {
+  listReviewQueue,
+  getReviewEntry,
+  approveReviewEntry,
+  rejectReviewEntry,
+  sendNow
+};
