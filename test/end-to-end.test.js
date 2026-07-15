@@ -5,11 +5,10 @@
  *
  * Runs against a live instance of the real Express app (ephemeral port,
  * in-memory repositories since DATABASE_URL isn't set in test envs).
- * Fleetbase is left as whatever .env has (its client already no-ops
- * without a real key); LLM extraction and SMTP are force-disabled for
- * this whole file in test.before() regardless of .env, so these tests
- * exercise the graceful-skip paths deterministically and never dispatch
- * a real email, even when real credentials are configured for live use.
+ * Fleetbase, LLM extraction, and SMTP are force-disabled for this whole
+ * file in test.before() regardless of .env, so these tests exercise the
+ * graceful-skip paths deterministically and never dispatch a real API call
+ * or email, even when real credentials are configured for live use.
  */
 
 const test = require("node:test");
@@ -35,10 +34,16 @@ test.before(() => {
   savedEnv.groqKey = env.groq.apiKey;
   savedEnv.smtpUser = env.smtp.user;
   savedEnv.smtpPassword = env.smtp.password;
+  savedEnv.fleetbaseBaseUrl = env.fleetbase.baseUrl;
+  savedEnv.fleetbaseApiKey = env.fleetbase.apiKey;
+  savedEnv.fleetbaseOrderEndpoint = env.fleetbase.orderEndpoint;
   env.openai.apiKey = "";
   env.groq.apiKey = "";
   env.smtp.user = "";
   env.smtp.password = "";
+  env.fleetbase.baseUrl = "";
+  env.fleetbase.apiKey = "";
+  env.fleetbase.orderEndpoint = "/orders";
 
   const app = createApp();
   server = app.listen(0);
@@ -55,6 +60,9 @@ test.after(() => {
   env.groq.apiKey = savedEnv.groqKey;
   env.smtp.user = savedEnv.smtpUser;
   env.smtp.password = savedEnv.smtpPassword;
+  env.fleetbase.baseUrl = savedEnv.fleetbaseBaseUrl;
+  env.fleetbase.apiKey = savedEnv.fleetbaseApiKey;
+  env.fleetbase.orderEndpoint = savedEnv.fleetbaseOrderEndpoint;
 });
 
 async function api(path, options = {}) {
