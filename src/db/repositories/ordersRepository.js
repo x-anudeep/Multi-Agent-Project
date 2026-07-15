@@ -29,6 +29,21 @@ function normalizeRow(row) {
   };
 }
 
+function normalizeQuoteRow(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    orderId: row.order_id ?? row.orderId,
+    vehicleId: row.vehicle_id ?? row.vehicleId,
+    basePrice: Number(row.base_price ?? row.basePrice ?? 0),
+    discountAmount: Number(row.discount_amount ?? row.discountAmount ?? 0),
+    finalPrice: Number(row.final_price ?? row.finalPrice ?? 0),
+    reviewNotes: row.review_notes ?? row.reviewNotes ?? [],
+    createdAt: row.created_at ?? row.createdAt,
+    updatedAt: row.updated_at ?? row.updatedAt
+  };
+}
+
 async function createOrder(order) {
   const pool = getPool();
   const id = order.id || randomUUID();
@@ -145,10 +160,64 @@ async function updateOrder(id, changes) {
   return normalizeRow(result.rows[0]);
 }
 
+async function createQuote(quote) {
+  const pool = getPool();
+  const id = quote.id || randomUUID();
+  const now = timestamp();
+
+  if (!pool) {
+    const saved = normalizeQuoteRow({
+      ...quote,
+      id,
+      status: quote.status || "draft",
+      createdAt: now,
+      updatedAt: now
+    });
+    memory.quotes.set(id, saved);
+    return saved;
+  }
+
+  const result = await pool.query(
+    `INSERT INTO quotes (
+      id, order_id, vehicle_id, base_price, discount_amount,
+      final_price, currency, status, review_notes
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    RETURNING *`,
+    [
+      id,
+      quote.orderId,
+      quote.vehicleId || null,
+      quote.basePrice,
+      quote.discountAmount || 0,
+      quote.finalPrice,
+      quote.currency || "USD",
+      quote.status || "draft",
+      quote.reviewNotes || []
+    ]
+  );
+
+  return normalizeQuoteRow(result.rows[0]);
+}
+
+async function listQuotesByOrderId(orderId) {
+  const pool = getPool();
+  if (!pool) {
+    return Array.from(memory.quotes.values()).filter((quote) => quote.orderId === orderId);
+  }
+
+  const result = await pool.query(
+    "SELECT * FROM quotes WHERE order_id = $1 ORDER BY created_at DESC",
+    [orderId]
+  );
+  return result.rows.map(normalizeQuoteRow);
+}
+
 module.exports = {
   createOrder,
   listOrders,
   findOrderById,
   updateOrder,
+  createQuote,
+  listQuotesByOrderId,
   memory
 };
