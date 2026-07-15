@@ -24,6 +24,17 @@ async function twilioVoiceWebhook(req, res, next) {
 }
 
 /**
+ * Handle Twilio speech recognition result (Gather) webhook
+ */
+async function twilioSpeechResultWebhook(req, res, next) {
+  try {
+    await twilioVoiceHandler.handleSpeechResult(req, res);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Handle Twilio recording completion webhook
  */
 async function twilioRecordingWebhook(req, res, next) {
@@ -48,6 +59,7 @@ async function twilioTranscriptionWebhook(req, res, next) {
 module.exports = {
   fleetbaseStatus,
   twilioVoiceWebhook,
+  twilioSpeechResultWebhook,
   twilioRecordingWebhook,
   twilioTranscriptionWebhook
 };

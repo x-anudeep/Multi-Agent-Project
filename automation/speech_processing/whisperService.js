@@ -43,24 +43,39 @@ function ensureCacheDir() {
  * @returns {Promise<void>}
  */
 async function downloadAudioFile(url, outputPath) {
+  // Twilio recording media requires the .wav extension and is only
+  // accessible with the account's Basic Auth credentials.
+  const audioUrl = /\.\w+$/.test(url) ? url : `${url}.wav`;
+  const authHeader = `Basic ${Buffer.from(
+    `${env.twilio.accountSid}:${env.twilio.authToken}`
+  ).toString("base64")}`;
+
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(outputPath);
 
-    https.get(url, (response) => {
-      response.pipe(file);
+    https
+      .get(audioUrl, { headers: { Authorization: authHeader } }, (response) => {
+        if (response.statusCode && response.statusCode >= 400) {
+          fs.unlink(outputPath, () => {});
+          reject(new Error(`Failed to download recording: HTTP ${response.statusCode}`));
+          return;
+        }
 
-      file.on("finish", () => {
-        file.close(() => resolve());
-      });
+        response.pipe(file);
 
-      file.on("error", (err) => {
+        file.on("finish", () => {
+          file.close(() => resolve());
+        });
+
+        file.on("error", (err) => {
+          fs.unlink(outputPath, () => {}); // Clean up on error
+          reject(err);
+        });
+      })
+      .on("error", (err) => {
         fs.unlink(outputPath, () => {}); // Clean up on error
         reject(err);
       });
-    }).on("error", (err) => {
-      fs.unlink(outputPath, () => {}); // Clean up on error
-      reject(err);
-    });
   });
 }
 
