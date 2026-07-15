@@ -489,6 +489,197 @@ Person 1 is complete.
 
 Person 2 should start from `automation/` and connect phone/email/PDF/email delivery around the existing backend APIs.
 
+## Person 2 Final Handoff
+
+This is the section Person 2 should follow to download, run, and finish the project.
+
+### Download The Project
+
+Clone the repository:
+
+```bash
+git clone https://github.com/x-anudeep/Multi-Agent-Project.git
+cd Multi-Agent-Project
+```
+
+Initialize the Fleetbase submodule:
+
+```bash
+git submodule update --init --recursive
+```
+
+Install Node dependencies:
+
+```bash
+npm install
+```
+
+### Start The Project
+
+Start Docker/Colima:
+
+```bash
+colima start
+```
+
+Start Fleetbase:
+
+```bash
+npm run fleetbase:start
+```
+
+Prepare local Fleetbase login, roles, database setup, and API key:
+
+```bash
+npm run fleetbase:setup
+```
+
+Start Person 1's backend and frontend:
+
+```bash
+npm start
+```
+
+Open these links:
+
+- Main project frontend: `http://localhost:3000`
+- Backend health check: `http://localhost:3000/health`
+- Fleetbase Console: `http://localhost:4200`
+- Fleetbase API: `http://localhost:8000`
+
+Fleetbase login:
+
+```text
+Email: admin@example.com
+Password: Fleetbase2026!
+```
+
+If port `3000` is already in use:
+
+```bash
+lsof -i :3000 -P -n
+kill <PID>
+npm start
+```
+
+### Confirm It Works
+
+Run automated tests:
+
+```bash
+npm test
+```
+
+Check backend health:
+
+```bash
+curl http://localhost:3000/health
+```
+
+Check Fleetbase connection:
+
+```bash
+curl http://localhost:3000/api/integrations/fleetbase/status
+```
+
+Test LangChain triage with raw text:
+
+```bash
+curl -X POST http://localhost:3000/api/agents/triage \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transcript": "Customer: Acme Logistics. Pickup Phoenix to Los Angeles on 2026-07-16 with 1200 kg and 8 m3 cargo: electronics. Email ops@example.com"
+  }'
+```
+
+Create an order:
+
+```bash
+curl -X POST http://localhost:3000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer": {
+      "name": "Acme Logistics",
+      "email": "ops@example.com"
+    },
+    "shipment": {
+      "pickup": "Phoenix",
+      "dropoff": "Los Angeles",
+      "pickupDate": "2026-07-16",
+      "weight": "1200 kg",
+      "volume": "8 m3",
+      "commodity": "electronics"
+    }
+  }'
+```
+
+Use the returned order id to generate a quote:
+
+```bash
+curl -X POST http://localhost:3000/api/orders/<ORDER_ID>/quotes
+```
+
+The quote response should include:
+
+- `orchestration: "langchain_runnable_pipeline"`
+- `agents.triage`
+- `agents.routeCapacity`
+- `agents.pricing`
+- `agents.loadOptimization`
+- `agents.review`
+
+### What Person 1 Already Finished
+
+Person 1 completed:
+
+- Node/Express backend
+- Dark frontend at `http://localhost:3000`
+- Fleetbase submodule integration
+- Fleetbase local Docker setup and API key setup
+- Order creation and listing APIs
+- Fleetbase order sync
+- Quote generation API
+- LangChain orchestration for the backend agent pipeline
+- LangChain triage endpoint for email/call transcript text
+- Optional OpenAI extraction through `OPENAI_API_KEY`
+- Triage, route/capacity, pricing, load optimization, and quote review agents
+- Automated tests for normalizer, agents, and LangChain pipeline
+- Skeleton folders under `automation/`
+
+### What Person 2 Must Add
+
+Person 2 should add new work inside the existing `automation/` folders:
+
+```text
+automation/
+├── dashboard/
+├── email_automation/
+├── email_parser/
+├── fleetbase_automation/
+├── pdf_quotes/
+├── speech_processing/
+└── twilio/
+```
+
+Required Person 2 tasks:
+
+1. Add Twilio inbound voice webhooks in `automation/twilio/`.
+2. Send call recordings to `automation/speech_processing/`.
+3. Use Whisper or another speech-to-text service to create transcripts.
+4. Send transcripts to `POST /api/agents/triage`.
+5. Convert valid triage output into `POST /api/orders`.
+6. Connect Outlook IMAP, SMTP, or Microsoft Graph in `automation/email_parser/` and `automation/email_automation/`.
+7. Parse shipment request emails and prevent duplicate orders.
+8. Generate quotes through `POST /api/orders/:orderId/quotes`.
+9. Build customer-facing PDF quotes in `automation/pdf_quotes/`.
+10. Email approved quote PDFs to customers.
+11. Hold `requires_manual_review` quotes for human approval instead of sending automatically.
+12. Add Fleetbase UI automation in `automation/fleetbase_automation/` only for steps not covered by Fleetbase APIs.
+13. Add intake, quote, and delivery status views in `automation/dashboard/` or extend the current frontend.
+14. Add end-to-end tests for phone-to-order, email-to-order, order-to-Fleetbase, quote-to-PDF, and PDF-to-email.
+
+Person 2 should treat Person 1's backend APIs as the source of truth and build automation around them instead of replacing them.
+
 ## License
 
 This project is developed for academic purposes as a demonstration of an AI-powered multi-agent logistics automation system.
