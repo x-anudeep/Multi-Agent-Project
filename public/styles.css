@@ -338,8 +338,46 @@ input:focus {
 }
 
 .agent-panel,
+.monitoring-panel,
 .handoff-panel {
   margin-top: 16px;
+}
+
+.review-actions {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.mini-input {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #0b1118;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.mini-input:focus {
+  outline: none;
+  border-color: var(--accent-2);
+}
+
+.pill.status-delivered {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pill.status-failed {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.pill.status-skipped,
+.pill.status-pending {
+  color: var(--warning);
+  border-color: var(--warning);
 }
 
 .agent-layout {

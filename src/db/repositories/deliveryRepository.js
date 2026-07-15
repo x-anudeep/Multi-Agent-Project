@@ -100,6 +100,18 @@ async function listDeliveryLogsForOrder(orderId) {
   return result.rows.map(normalizeRow);
 }
 
+async function listAllDeliveryLogs() {
+  const pool = getPool();
+  if (!pool) {
+    return Array.from(memory.deliveryLogs.values()).sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+  }
+
+  const result = await pool.query("SELECT * FROM delivery_logs ORDER BY created_at DESC");
+  return result.rows.map(normalizeRow);
+}
+
 async function updateDeliveryLog(id, changes) {
   const existing = await findDeliveryLogById(id);
   if (!existing) return null;
@@ -140,5 +152,6 @@ module.exports = {
   createDeliveryLog,
   findDeliveryLogById,
   listDeliveryLogsForOrder,
+  listAllDeliveryLogs,
   updateDeliveryLog
 };

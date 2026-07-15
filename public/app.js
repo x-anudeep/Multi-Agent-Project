@@ -23,7 +23,16 @@ const elements = {
   workflowState: document.querySelector("#workflowState"),
   refreshButton: document.querySelector("#refreshButton"),
   sampleButton: document.querySelector("#sampleButton"),
-  toast: document.querySelector("#toast")
+  toast: document.querySelector("#toast"),
+  monitorOrderCount: document.querySelector("#monitorOrderCount"),
+  monitorReviewPending: document.querySelector("#monitorReviewPending"),
+  monitorDeliveredCount: document.querySelector("#monitorDeliveredCount"),
+  monitorFailedCount: document.querySelector("#monitorFailedCount"),
+  reviewQueueList: document.querySelector("#reviewQueueList"),
+  reviewQueueCount: document.querySelector("#reviewQueueCount"),
+  deliveryLogList: document.querySelector("#deliveryLogList"),
+  deliveryLogCount: document.querySelector("#deliveryLogCount"),
+  monitoringRefreshButton: document.querySelector("#monitoringRefreshButton")
 };
 
 function money(value) {
@@ -184,6 +193,123 @@ function renderQuote(orderId, quoteResult) {
   renderMetrics();
 }
 
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString() : "-";
+}
+
+function truncate(text, max) {
+  const value = String(text || "");
+  return value.length > max ? `${value.slice(0, max)}...` : value;
+}
+
+function renderReviewQueue(entries) {
+  const pendingCount = entries.filter((entry) => entry.status === "pending").length;
+  elements.reviewQueueCount.textContent = `${entries.length} entries`;
+  elements.monitorReviewPending.textContent = pendingCount;
+
+  if (!entries.length) {
+    elements.reviewQueueList.className = "orders-list empty-state";
+    elements.reviewQueueList.textContent = "No entries yet.";
+    return;
+  }
+
+  elements.reviewQueueList.className = "orders-list";
+  elements.reviewQueueList.innerHTML = entries
+    .map((entry) => {
+      const normalized = entry.triageResult?.triage?.normalizedShipment || {};
+      const isPending = entry.status === "pending";
+
+      return `
+        <article class="order-row review-row" data-review-id="${entry.id}">
+          <div>
+            <strong>${entry.reason}</strong>
+            <p>${truncate(entry.rawData?.text, 140)}</p>
+            <p>Status: ${entry.status} / ${formatDate(entry.createdAt)}</p>
+          </div>
+          ${
+            isPending
+              ? `
+            <div class="review-actions">
+              <input class="mini-input" data-field="pickup" placeholder="Pickup" value="${normalized.origin || ""}">
+              <input class="mini-input" data-field="dropoff" placeholder="Dropoff" value="${normalized.destination || ""}">
+              <input class="mini-input" data-field="weight" placeholder="Weight, e.g. 500 kg">
+              <input class="mini-input" data-field="volume" placeholder="Volume, e.g. 5 m3">
+              <div class="row-actions">
+                <button class="secondary-button" data-action="reject-review" data-id="${entry.id}" type="button">Reject</button>
+                <button class="primary-button" data-action="approve-review" data-id="${entry.id}" type="button">Approve</button>
+              </div>
+            </div>
+          `
+              : `<span class="pill">${entry.status}</span>`
+          }
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderDeliveryLog(logs) {
+  elements.deliveryLogCount.textContent = `${logs.length} entries`;
+  elements.monitorDeliveredCount.textContent = logs.filter((log) => log.status === "delivered").length;
+  elements.monitorFailedCount.textContent = logs.filter((log) => ["failed", "skipped"].includes(log.status)).length;
+
+  if (!logs.length) {
+    elements.deliveryLogList.className = "orders-list empty-state";
+    elements.deliveryLogList.textContent = "No delivery attempts yet.";
+    return;
+  }
+
+  elements.deliveryLogList.className = "orders-list";
+  elements.deliveryLogList.innerHTML = logs
+    .map(
+      (log) => `
+        <article class="order-row">
+          <div>
+            <strong>${log.subject || "Quote email"}</strong>
+            <p>To: ${log.recipientEmail || "-"}</p>
+            <p>Attempts: ${log.attemptCount} / ${formatDate(log.lastAttemptAt)}${log.lastError ? ` / ${log.lastError}` : ""}</p>
+          </div>
+          <span class="pill status-${log.status}">${log.status}</span>
+        </article>
+      `
+    )
+    .join("");
+}
+
+async function loadMonitoring() {
+  elements.monitoringRefreshButton.disabled = true;
+  try {
+    const summary = await api("/api/dashboard/summary");
+    elements.monitorOrderCount.textContent = summary.orders.total;
+    renderReviewQueue(summary.reviewQueue.recent);
+    renderDeliveryLog(summary.delivery.recent);
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    elements.monitoringRefreshButton.disabled = false;
+  }
+}
+
+async function approveReviewEntry(reviewId, row) {
+  const fields = {};
+  row.querySelectorAll(".mini-input").forEach((input) => {
+    fields[input.dataset.field] = input.value;
+  });
+
+  await api(`/api/orders/review-queue/${reviewId}/approve`, {
+    method: "POST",
+    body: JSON.stringify(fields)
+  });
+  showToast("Review approved, order created");
+  await Promise.all([loadMonitoring(), loadOrders()]);
+}
+
+async function rejectReviewEntry(reviewId) {
+  await api(`/api/orders/review-queue/${reviewId}/reject`, { method: "POST" });
+  showToast("Review rejected");
+  await loadMonitoring();
+}
+
 async function loadOrders() {
   elements.refreshButton.disabled = true;
   try {
@@ -289,9 +415,27 @@ elements.ordersList.addEventListener("click", async (event) => {
   }
 });
 
+elements.reviewQueueList.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+
+  const { action, id } = button.dataset;
+  const row = button.closest(".review-row");
+  button.disabled = true;
+  try {
+    if (action === "approve-review") await approveReviewEntry(id, row);
+    if (action === "reject-review") await rejectReviewEntry(id);
+  } catch (error) {
+    showToast(error.message);
+    button.disabled = false;
+  }
+});
+
 elements.refreshButton.addEventListener("click", loadOrders);
 elements.sampleButton.addEventListener("click", loadSample);
+elements.monitoringRefreshButton.addEventListener("click", loadMonitoring);
 
 checkHealth();
 checkFleetbase();
 loadOrders();
+loadMonitoring();

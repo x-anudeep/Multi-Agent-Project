@@ -21,6 +21,7 @@
           <a href="#intake" class="active">Order Intake</a>
           <a href="#orders">Orders</a>
           <a href="#agents">Agent Review</a>
+          <a href="#monitoring">Monitoring</a>
           <a href="#handoff">Person 2</a>
         </nav>
 
@@ -149,17 +150,70 @@
           </div>
         </section>
 
+        <section class="panel monitoring-panel" id="monitoring">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Automation health</p>
+              <h2>Intake &amp; Delivery Monitoring</h2>
+            </div>
+            <button class="icon-button" id="monitoringRefreshButton" title="Refresh monitoring" type="button">R</button>
+          </div>
+
+          <section class="metric-grid" aria-label="Monitoring metrics">
+            <article>
+              <span>Total Orders</span>
+              <strong id="monitorOrderCount">0</strong>
+            </article>
+            <article>
+              <span>Review Queue Pending</span>
+              <strong id="monitorReviewPending">0</strong>
+            </article>
+            <article>
+              <span>Deliveries Sent</span>
+              <strong id="monitorDeliveredCount">0</strong>
+            </article>
+            <article>
+              <span>Deliveries Failed/Skipped</span>
+              <strong id="monitorFailedCount">0</strong>
+            </article>
+          </section>
+
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Failed parsing attempts</p>
+                  <h2>Manual Review Queue</h2>
+                </div>
+                <span class="pill" id="reviewQueueCount">0 entries</span>
+              </div>
+              <div id="reviewQueueList" class="orders-list empty-state">No entries yet.</div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Quote PDFs</p>
+                  <h2>Delivery Log</h2>
+                </div>
+                <span class="pill" id="deliveryLogCount">0 entries</span>
+              </div>
+              <div id="deliveryLogList" class="orders-list empty-state">No delivery attempts yet.</div>
+            </section>
+          </div>
+        </section>
+
         <section class="panel handoff-panel" id="handoff">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Next teammate</p>
+              <p class="eyebrow">Automation layer</p>
               <h2>Person 2 Workbench</h2>
             </div>
-            <span class="pill">Skeleton ready</span>
+            <span class="pill">Live</span>
           </div>
           <div class="handoff-grid">
-            <article><strong>Twilio</strong><span>Inbound call webhooks and recording metadata.</span></article>
-            <article><strong>Whisper</strong><span>Speech-to-text cleanup and order payload creation.</span></article>
+            <article><strong>Twilio</strong><span>Inbound call webhooks, conversational speech intake.</span></article>
+            <article><strong>Whisper</strong><span>Recording transcription for the call-recording fallback path.</span></article>
             <article><strong>Email Parser</strong><span>Outlook intake, duplicate checks, and API submission.</span></article>
             <article><strong>PDF + Email</strong><span>Approved quote PDF generation and SMTP delivery.</span></article>
           </div>
