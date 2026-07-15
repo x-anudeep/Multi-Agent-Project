@@ -78,7 +78,16 @@ async function approveReviewEntry(reviewId, overrides = {}) {
     orderId: order.id
   });
 
-  return { order, reviewEntry: updated };
+  // Auto-generate a quote now that a human has resolved the intake issue;
+  // quoteService sends the PDF/email itself if it comes out approved.
+  let quoteResult = null;
+  try {
+    quoteResult = await quoteService.generateQuote(order.id);
+  } catch (error) {
+    console.error("Automatic quote generation failed after review approval:", error.message);
+  }
+
+  return { order, reviewEntry: updated, quoteResult };
 }
 
 /**
@@ -101,7 +110,9 @@ async function rejectReviewEntry(reviewId, notes) {
 }
 
 /**
- * Generate a quote for an approved entry's order and email the PDF now.
+ * Retry/force delivery for an approved entry's order. Approving an entry
+ * already auto-generates (and, if approved, auto-sends) a quote, so this is
+ * for retrying a failed send or generating one if that step didn't run.
  * @param {string} reviewId
  */
 async function sendNow(reviewId) {
@@ -110,10 +121,15 @@ async function sendNow(reviewId) {
     throw badRequest("Review entry must be approved (with an order) before it can be sent");
   }
 
-  const quoteResult = await quoteService.generateQuote(entry.orderId);
-  const delivery = await deliveryService.sendQuotePdf(entry.orderId, quoteResult.quote.id);
+  const existingQuotes = await quoteService.listQuotesForOrder(entry.orderId);
+  if (existingQuotes.length === 0) {
+    const quoteResult = await quoteService.generateQuote(entry.orderId);
+    return { quote: quoteResult.quote, delivery: quoteResult.delivery };
+  }
 
-  return { quote: quoteResult.quote, delivery };
+  const quote = existingQuotes[0];
+  const delivery = await deliveryService.sendQuotePdf(entry.orderId, quote.id);
+  return { quote, delivery };
 }
 
 module.exports = {

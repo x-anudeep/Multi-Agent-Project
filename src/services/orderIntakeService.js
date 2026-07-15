@@ -167,11 +167,29 @@ async function processIntake(input) {
       status: orderResult.status
     });
 
+    // Step 6: Automatically generate a quote (quoteService sends the PDF/
+    // email itself if it comes out approved; a review-flagged quote is left
+    // for a human). A failure here (e.g. unsupported route) shouldn't fail
+    // the intake overall -- the order was already created successfully.
+    let quoteResult = null;
+    try {
+      console.log("Step 6: Generating quote...");
+      quoteResult = await callApi(`/api/orders/${orderResult.id}/quotes`, {});
+      console.log("Quote generated:", {
+        quoteId: quoteResult.quote?.id,
+        status: quoteResult.quote?.status,
+        deliveryStatus: quoteResult.delivery?.deliveryLog?.status
+      });
+    } catch (error) {
+      console.error("Automatic quote generation failed:", error.message);
+    }
+
     return {
       success: true,
       status: "order_created",
       orderId: orderResult.id,
       order: orderResult,
+      quoteResult,
       triageResult,
       shipmentData
     };

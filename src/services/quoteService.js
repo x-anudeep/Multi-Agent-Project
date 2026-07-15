@@ -1,6 +1,23 @@
 const ordersRepository = require("../db/repositories/ordersRepository");
 const { getOrder } = require("./orderService");
 const { runLangChainQuotePipeline } = require("../agents/langchainAgentPipeline");
+const deliveryService = require("./deliveryService");
+
+/**
+ * If a quote comes out approved, immediately generate its PDF and email it.
+ * Quotes still requiring manual review are left untouched (never auto-sent).
+ * A delivery failure here doesn't fail quote creation/approval itself.
+ */
+async function maybeAutoSend(orderId, quote) {
+  if (quote.status !== "approved") return null;
+
+  try {
+    return await deliveryService.sendQuotePdf(orderId, quote.id);
+  } catch (error) {
+    console.error("Auto-send failed for approved quote:", error);
+    return { error: error.message };
+  }
+}
 
 async function generateQuote(orderId) {
   const order = await getOrder(orderId);
@@ -36,8 +53,11 @@ async function generateQuote(orderId) {
     ]
   });
 
+  const delivery = await maybeAutoSend(order.id, quote);
+
   return {
     quote,
+    delivery,
     orchestration: "langchain_runnable_pipeline",
     agents: {
       triage,

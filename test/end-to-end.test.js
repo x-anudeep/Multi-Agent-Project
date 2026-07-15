@@ -5,9 +5,11 @@
  *
  * Runs against a live instance of the real Express app (ephemeral port,
  * in-memory repositories since DATABASE_URL isn't set in test envs).
- * External integrations (Fleetbase, SMTP, OpenAI) are intentionally left
- * unconfigured so these tests exercise the graceful-skip paths without
- * needing real credentials or network access.
+ * Fleetbase is left as whatever .env has (its client already no-ops
+ * without a real key); LLM extraction and SMTP are force-disabled for
+ * this whole file in test.before() regardless of .env, so these tests
+ * exercise the graceful-skip paths deterministically and never dispatch
+ * a real email, even when real credentials are configured for live use.
  */
 
 const test = require("node:test");
@@ -15,11 +17,29 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const { createApp } = require("../src/app");
 const orderIntakeService = require("../src/services/orderIntakeService");
+const { env } = require("../src/config/env");
 
 let server;
 let baseUrl;
 
+// Force every intake path's auto-quote-generation to hit the deterministic
+// heuristic extractor and the "SMTP not configured" skip path for this
+// entire file, regardless of real credentials sitting in .env for live
+// demo use. emailService caches its transporter in a module-level variable
+// the first time it's created, so overriding this per-test would be too
+// late once any earlier test in the file has already triggered a real send.
+const savedEnv = {};
+
 test.before(() => {
+  savedEnv.openaiKey = env.openai.apiKey;
+  savedEnv.groqKey = env.groq.apiKey;
+  savedEnv.smtpUser = env.smtp.user;
+  savedEnv.smtpPassword = env.smtp.password;
+  env.openai.apiKey = "";
+  env.groq.apiKey = "";
+  env.smtp.user = "";
+  env.smtp.password = "";
+
   const app = createApp();
   server = app.listen(0);
   const { port } = server.address();
@@ -31,6 +51,10 @@ test.before(() => {
 
 test.after(() => {
   server.close();
+  env.openai.apiKey = savedEnv.openaiKey;
+  env.groq.apiKey = savedEnv.groqKey;
+  env.smtp.user = savedEnv.smtpUser;
+  env.smtp.password = savedEnv.smtpPassword;
 });
 
 async function api(path, options = {}) {
@@ -153,7 +177,7 @@ test("order-to-Fleetbase: order creation degrades gracefully without Fleetbase c
   assert.ok(!body.data.fleetbaseOrderId);
 });
 
-test("quote-to-PDF-to-email: approved quote generates a PDF and logs a delivery attempt", async () => {
+test("quote-to-PDF-to-email: approved quote auto-generates a PDF and logs a delivery attempt", async () => {
   const { body: orderBody } = await api("/api/orders", {
     method: "POST",
     body: JSON.stringify({
@@ -170,25 +194,23 @@ test("quote-to-PDF-to-email: approved quote generates a PDF and logs a delivery 
   });
   const orderId = orderBody.data.id;
 
+  // Generating an approved quote now auto-sends the PDF/email itself
+  // (quoteService.generateQuote), rather than requiring a separate send-pdf call.
   const { body: quoteBody } = await api(`/api/orders/${orderId}/quotes`, { method: "POST" });
   assert.equal(quoteBody.data.quote.status, "approved");
-  const quoteId = quoteBody.data.quote.id;
 
-  const { status, body: sendBody } = await api(`/api/orders/${orderId}/quotes/${quoteId}/send-pdf`, {
-    method: "POST"
-  });
-
-  assert.equal(status, 202); // 202 because the email send was skipped (no SMTP configured)
-  assert.ok(fs.existsSync(sendBody.data.pdfPath), "expected the quote PDF to be written to disk");
-  assert.ok(fs.statSync(sendBody.data.pdfPath).size > 0);
-  assert.equal(sendBody.data.emailResult.skipped, true);
-  assert.equal(sendBody.data.deliveryLog.status, "skipped");
+  const delivery = quoteBody.data.delivery;
+  assert.ok(delivery, "expected quote generation to auto-trigger delivery");
+  assert.ok(fs.existsSync(delivery.pdfPath), "expected the quote PDF to be written to disk");
+  assert.ok(fs.statSync(delivery.pdfPath).size > 0);
+  assert.equal(delivery.emailResult.skipped, true); // SMTP forced unconfigured for this whole file
+  assert.equal(delivery.deliveryLog.status, "skipped");
 
   const { body: statusBody } = await api(`/api/orders/${orderId}/delivery-status`);
   assert.equal(statusBody.data.length, 1);
-  assert.equal(statusBody.data[0].id, sendBody.data.deliveryLog.id);
+  assert.equal(statusBody.data[0].id, delivery.deliveryLog.id);
 
-  fs.unlinkSync(sendBody.data.pdfPath);
+  fs.unlinkSync(delivery.pdfPath);
 });
 
 test("quote review: a manually rejected quote cannot be sent or re-approved", async () => {
