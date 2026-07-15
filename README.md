@@ -1,297 +1,458 @@
-# 🚛 AI-Powered Multi-Agent Logistics Automation System
+# AI-Powered Multi-Agent Logistics Automation System
 
-## Overview
+This project is a logistics quotation system that connects a Node.js backend, a dark operations frontend, Fleetbase, and a chain of backend agents for shipment validation, route/capacity checks, pricing, load optimization, and quote review.
 
-This project is an AI-powered logistics automation system designed to streamline transportation order processing. It automates the complete workflow from receiving transportation requests through phone calls or emails to generating optimized quotations and updating Fleetbase.
+Person 1's backend work is complete. Person 2 should now finish the automation layer that turns phone calls and emails into backend orders, generates customer quote PDFs, sends emails, and validates the full end-to-end workflow.
 
-The system leverages multiple AI agents to extract shipment details, validate requests, identify suitable vehicles, calculate pricing, optimize vehicle capacity, and generate quotations while minimizing manual intervention.
+## Working Links
 
----
+After starting the project, open:
 
-## Problem Statement
+- Main frontend: `http://localhost:3000`
+- Backend health: `http://localhost:3000/health`
+- Fleetbase status API: `http://localhost:3000/api/integrations/fleetbase/status`
+- Fleetbase Console: `http://localhost:4200`
+- Fleetbase API: `http://localhost:8000`
 
-Logistics companies often receive transportation requests through unstructured phone calls and emails, making order extraction, validation, route checking, capacity analysis, pricing, and quotation generation slow and error-prone.
+Fleetbase local login:
 
-Additionally, vehicles frequently travel with unused capacity, resulting in reduced operational efficiency and increased transportation costs.
-
----
-
-## Proposed Solution
-
-The proposed solution is a Multi-Agent AI Logistics System that automates the entire order management workflow using AI and automation technologies.
-
-The system performs:
-
-- Customer request processing
-- Shipment information extraction
-- Route validation
-- Vehicle capacity analysis
-- Dynamic pricing
-- Load optimization
-- Quote generation
-- Fleetbase automation
-- Email notification
-
----
-
-# System Architecture
-
-Customer Call / Email
-        │
-        ▼
-Speech-to-Text / Email Parser
-        │
-        ▼
-Triage Agent
-        │
-        ▼
-Route & Capacity Agent
-        │
-        ▼
-Pricing Agent
-        │
-        ▼
-Load Optimization Agent
-        │
-        ▼
-Review Agent
-        │
-        ▼
-Fleetbase
-        │
-        ▼
-PDF Quote
-        │
-        ▼
-Customer Email
-
----
-
-# AI Agents
-
-## 1. Triage Agent
-- Extract shipment details
-- Validate customer request
-- Detect missing information
-- Normalize order data
-
-## 2. Route & Capacity Agent
-- Check available vehicles
-- Verify route compatibility
-- Calculate remaining vehicle capacity
-
-## 3. Pricing Agent
-- Calculate transportation cost
-- Apply pricing rules
-- Generate quotation
-
-## 4. Load Optimization Agent
-- Identify partially loaded vehicles
-- Recommend compatible shipments
-- Apply controlled discounts
-
-## 5. Review Agent
-- Validate pricing
-- Validate capacity
-- Verify business rules
-- Approve final quotation
-
----
-
-# Features
-
-- AI-powered shipment extraction
-- Voice call processing
-- Email order processing
-- Fleetbase integration
-- Vehicle capacity optimization
-- Dynamic pricing
-- Automated quotation generation
-- PDF quote generation
-- Automated email delivery
-- Human review support
-- Multi-agent architecture
-
----
-
-# Tech Stack
-
-## Frontend
-- Angular
-
-## Backend
-- Node.js
-- Express.js
-
-## Database
-- PostgreSQL
-
-## AI Framework
-- LangChain
-
-## Large Language Model
-- OpenAI GPT-5.5
-
-## Automation
-- Claude Computer Use
-
-## Voice Processing
-- Twilio
-- OpenAI Whisper
-
-## Email
-- Outlook SMTP/IMAP
-
-## Logistics Platform
-- Fleetbase
-
-## PDF Generation
-- PDFKit
-
-## APIs
-- REST APIs
-
-## Version Control
-- Git
-- GitHub
-
----
-
-# Software Used
-
-- Fleetbase
-- Visual Studio Code
-- Postman
-- GitHub
-
----
-
-# Project Structure
-
-```
-AI-Logistics-System/
-│
-├── src/
-│   ├── agents/
-│   ├── controllers/
-│   ├── db/
-│   ├── middleware/
-│   ├── routes/
-│   └── services/
-├── automation/
-├── docs/
-├── test/
-├── README.md
-│
-└── package.json
+```text
+Email: admin@example.com
+Password: Fleetbase2026!
 ```
 
----
+## Quick Start
 
-# Backend API
-
-## Local Setup
+Install dependencies:
 
 ```bash
 npm install
-cp .env.example .env
-npm run dev
 ```
 
-If `DATABASE_URL` is left empty, the backend uses an in-memory repository for
-local demos. Use `src/db/schema.sql` to create PostgreSQL tables when a database
-is available.
+Start Colima/Docker:
 
-Open the dark mode operations console at:
-
-```text
-http://localhost:3000
+```bash
+colima start
 ```
 
-## Endpoints
-
-- `GET /health`
-- `GET /api/integrations/fleetbase/status`
-- `POST /api/orders`
-- `GET /api/orders`
-- `GET /api/orders/:id`
-- `POST /api/orders/:orderId/quotes`
-- `GET /api/orders/:orderId/quotes`
-
-## Fleetbase
-
-Fleetbase is included as a Git submodule at `external/fleetbase`.
+Start and prepare Fleetbase:
 
 ```bash
 npm run fleetbase:start
 npm run fleetbase:setup
-npm run fleetbase:status
 ```
 
-Fleetbase Console runs at `http://localhost:4200`, and Fleetbase API runs at
-`http://localhost:8000`. Full setup steps are in
-`docs/fleetbase-integration.md`.
+Start this backend/frontend:
 
----
+```bash
+npm start
+```
 
-# Workflow
+If `npm start` says `EADDRINUSE: address already in use :::3000`, the app is already running. Check it with:
 
-1. Customer submits transportation request via phone or email.
-2. Speech-to-Text or Email Parser extracts shipment details.
-3. Triage Agent validates and structures the request.
-4. Route & Capacity Agent identifies suitable vehicles.
-5. Pricing Agent calculates transportation costs.
-6. Load Optimization Agent applies discounts when spare capacity exists.
-7. Review Agent validates operational and pricing constraints.
-8. Fleetbase is updated automatically.
-9. PDF quotation is generated.
-10. Final quotation is sent to the customer via email.
+```bash
+lsof -i :3000 -P -n
+curl http://localhost:3000/health
+```
 
----
+Stop the old server if needed:
 
-# Expected Outcomes
+```bash
+kill <PID>
+npm start
+```
 
-- Reduced manual order processing
-- Faster quotation generation
-- Increased vehicle utilization
-- Improved operational efficiency
-- Reduced transportation costs
-- Higher booking conversion rate
-- Improved customer experience
+## What Person 1 Completed
 
----
+Person 1 completed the backend, agent logic, Fleetbase connection, frontend testing console, and local setup automation.
 
-# Future Enhancements
+Completed items:
 
-- Live GPS tracking
-- Predictive demand forecasting
-- AI route optimization
-- Customer portal
-- Mobile application
-- ERP integration
-- Real-time fleet monitoring
+- Node.js and Express backend
+- Dark mode operations frontend served from `http://localhost:3000`
+- Order creation API
+- Order listing API
+- Quote generation API
+- Shipment normalization
+- Fleetbase Git submodule integration at `external/fleetbase`
+- Fleetbase local Docker setup automation
+- Fleetbase API key generation for local development
+- Fleetbase order sync through `POST /v1/orders`
+- Triage Agent
+- Route and Capacity Agent
+- Pricing Agent
+- Load Optimization Agent
+- Quote Review Agent
+- Backend test coverage for normalization and agent logic
+- Person 2 automation skeleton folders
+- Person 2 handoff documentation
 
----
+Important files:
 
-# Team Members
+- Backend entry: `src/server.js`
+- Express app: `src/app.js`
+- Frontend: `public/index.html`, `public/app.js`, `public/styles.css`
+- Agents: `src/agents/`
+- Fleetbase client: `src/services/fleetbaseClient.js`
+- Order service: `src/services/orderService.js`
+- Quote service: `src/services/quoteService.js`
+- Fleetbase setup guide: `docs/fleetbase-integration.md`
+- Person 2 handoff: `docs/person2-handoff.md`
 
-### Person 1
-- Backend Development
-- AI Agents
-- Fleetbase Integration
-- Pricing Engine
-- Load Optimization
+## What Person 2 Must Finish
 
-### Person 2
-- Automation
+Person 2 owns the customer workflow and automation layer around Person 1's backend.
+
+Required remaining work:
+
+1. Twilio voice integration
+   - Add inbound call webhook handlers.
+   - Capture caller metadata and recordings.
+   - Send recordings to speech processing.
+
+2. Speech-to-text processing
+   - Use OpenAI Whisper or another STT service.
+   - Convert phone call audio into text.
+   - Extract shipment fields from spoken requests.
+
+3. Email parser
+   - Connect Outlook IMAP or Microsoft Graph.
+   - Read incoming shipment request emails.
+   - Extract customer, origin, destination, cargo, weight, volume, pickup date, and email.
+   - Prevent duplicate order creation.
+
+4. Backend integration
+   - Submit cleaned phone/email payloads to `POST /api/orders`.
+   - Trigger quote generation with `POST /api/orders/:orderId/quotes`.
+   - Handle validation errors and manual review cases.
+
+5. PDF quote generation
+   - Use PDFKit or another PDF generator.
+   - Turn approved quote responses into customer-facing PDF quotations.
+   - Include price, discount, route, shipment details, and quote status.
+
+6. Email automation
+   - Use Outlook SMTP, Microsoft Graph, or SMTP credentials.
+   - Send approved quote PDFs to customers.
+   - Log delivery success/failure.
+
+7. Human review workflow
+   - If quote status is `requires_manual_review`, do not email automatically.
+   - Add a way to approve/reject/send manually.
+
+8. Fleetbase UI automation if needed
+   - Use Claude Computer Use only for Fleetbase steps not available through API.
+   - Keep API integration as the preferred path.
+
+9. Monitoring/dashboard improvements
+   - Add a basic view for phone/email intake status.
+   - Show failed parsing attempts.
+   - Show quote delivery status.
+
+10. End-to-end testing
+   - Test phone-to-order.
+   - Test email-to-order.
+   - Test order-to-Fleetbase.
+   - Test quote-to-PDF.
+   - Test PDF-to-customer-email.
+
+Automation skeleton folders are already created:
+
+```text
+automation/
+├── dashboard/
+├── email_automation/
+├── email_parser/
+├── fleetbase_automation/
+├── pdf_quotes/
+├── speech_processing/
+└── twilio/
+```
+
+## API Endpoints
+
+Health:
+
+```http
+GET /health
+```
+
+Fleetbase status:
+
+```http
+GET /api/integrations/fleetbase/status
+```
+
+Orders:
+
+```http
+POST /api/orders
+GET /api/orders
+GET /api/orders/:id
+```
+
+Quotes:
+
+```http
+POST /api/orders/:orderId/quotes
+GET /api/orders/:orderId/quotes
+```
+
+## Example Order Payload
+
+Person 2 should send cleaned phone/email data to the backend in this shape:
+
+```json
+{
+  "customer": {
+    "name": "Acme Logistics",
+    "email": "ops@example.com"
+  },
+  "shipment": {
+    "pickup": "Phoenix",
+    "dropoff": "Los Angeles",
+    "pickupDate": "2026-07-16",
+    "weight": "1200 kg",
+    "volume": "8 m3",
+    "commodity": "electronics"
+  }
+}
+```
+
+Create an order:
+
+```bash
+curl -X POST http://localhost:3000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer": {
+      "name": "Acme Logistics",
+      "email": "ops@example.com"
+    },
+    "shipment": {
+      "pickup": "Phoenix",
+      "dropoff": "Los Angeles",
+      "pickupDate": "2026-07-16",
+      "weight": "1200 kg",
+      "volume": "8 m3",
+      "commodity": "electronics"
+    }
+  }'
+```
+
+Expected result:
+
+- Backend order is created.
+- Fleetbase order is created.
+- Response includes `fleetbaseOrderId`.
+- Order status becomes `sent_to_fleetbase`.
+
+Generate quote:
+
+```bash
+curl -X POST http://localhost:3000/api/orders/<ORDER_ID>/quotes
+```
+
+Expected result:
+
+- Quote is created.
+- Agent output is returned.
+- Approved quotes have status `approved`.
+
+## How The Agents Work
+
+The current agents are real backend logic, but they are rule-based. They are not LangChain/OpenAI LLM agents yet.
+
+### 1. Triage Agent
+
+File: `src/agents/triageAgent.js`
+
+Responsibilities:
+
+- Normalize shipment payload.
+- Convert values like `"1200 kg"` into `1200`.
+- Check required fields.
+- Return missing fields when order data is incomplete.
+- Decide next action:
+  - `route_capacity_check`
+  - `request_missing_information`
+
+### 2. Route and Capacity Agent
+
+File: `src/agents/routeCapacityAgent.js`
+
+Responsibilities:
+
+- Check if a route is supported.
+- Check vehicle remaining weight capacity.
+- Check vehicle remaining volume capacity.
+- Select a compatible vehicle.
+- Reject unsupported routes or overloaded shipments.
+
+### 3. Pricing Agent
+
+File: `src/agents/pricingAgent.js`
+
+Responsibilities:
+
+- Estimate route distance.
+- Apply per-km pricing.
+- Apply weight pricing.
+- Apply volume pricing.
+- Enforce minimum quote amount.
+
+### 4. Load Optimization Agent
+
+File: `src/agents/loadOptimizationAgent.js`
+
+Responsibilities:
+
+- Check spare vehicle capacity.
+- Calculate controlled spare-capacity discount.
+- Cap discount to business-safe limits.
+- Produce final optimized price.
+
+### 5. Quote Review Agent
+
+File: `src/agents/quoteReviewAgent.js`
+
+Responsibilities:
+
+- Validate capacity.
+- Validate minimum margin.
+- Validate discount limit.
+- Approve quote or send to manual review.
+
+## Test Cases
+
+Run automated tests:
+
+```bash
+npm test
+```
+
+Manual test 1, backend health:
+
+```bash
+curl http://localhost:3000/health
+```
+
+Manual test 2, Fleetbase connection:
+
+```bash
+curl http://localhost:3000/api/integrations/fleetbase/status
+```
+
+Manual test 3, create valid order:
+
+```bash
+curl -X POST http://localhost:3000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer": {
+      "name": "Valid Order",
+      "email": "valid@example.com"
+    },
+    "shipment": {
+      "pickup": "Phoenix",
+      "dropoff": "Los Angeles",
+      "pickupDate": "2026-07-16",
+      "weight": "1200 kg",
+      "volume": "8 m3",
+      "commodity": "electronics"
+    }
+  }'
+```
+
+Manual test 4, invalid order:
+
+```bash
+curl -X POST http://localhost:3000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer": {
+      "name": "Invalid Order"
+    },
+    "shipment": {
+      "pickup": "Phoenix"
+    }
+  }'
+```
+
+Expected: missing required shipment fields.
+
+Manual test 5, unsupported route:
+
+```bash
+curl -X POST http://localhost:3000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer": {
+      "name": "Unsupported Route",
+      "email": "route@example.com"
+    },
+    "shipment": {
+      "pickup": "Miami",
+      "dropoff": "Seattle",
+      "weight": "1000 kg",
+      "volume": "5 m3",
+      "commodity": "furniture"
+    }
+  }'
+```
+
+Then generate a quote for the returned order id. Expected: no compatible vehicle capacity is available.
+
+## Fleetbase Notes
+
+Fleetbase is included as a Git submodule:
+
+```text
+external/fleetbase
+```
+
+The setup command handles local Fleetbase fixes:
+
+- uses `127.0.0.1` internally to avoid a Fleetbase local domain parsing issue
+- uses a Docker named volume for MySQL data
+- creates `fleetbase` and `fleetbase_storefront` databases
+- runs migrations and seeders
+- creates local admin credentials
+- creates and writes a Fleetbase API key to `.env`
+
+Fleetbase setup details:
+
+```text
+docs/fleetbase-integration.md
+```
+
+## Tech Stack
+
+Implemented:
+
+- Node.js
+- Express.js
+- HTML/CSS/JavaScript frontend
+- Fleetbase
+- Docker/Colima
+- REST APIs
+- Node test runner
+
+Planned or Person 2-owned:
+
+- Twilio
+- OpenAI Whisper
+- Outlook SMTP/IMAP or Microsoft Graph
+- PDFKit
 - Claude Computer Use
-- Voice Processing
-- Email Integration
-- PDF Generation
-- End-to-End Workflow
+- Angular dashboard improvements, if required
 
----
+## Current Status
 
-# License
+Person 1 is complete.
 
-This project is developed for academic purposes as a demonstration of an AI-powered Multi-Agent Logistics Automation System.
+Person 2 should start from `automation/` and connect phone/email/PDF/email delivery around the existing backend APIs.
+
+## License
+
+This project is developed for academic purposes as a demonstration of an AI-powered multi-agent logistics automation system.
