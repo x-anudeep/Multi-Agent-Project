@@ -12,6 +12,12 @@ const { env } = require("../../src/config/env");
 let imapConnection = null;
 let pollingInterval = null;
 
+// Highest UID already seen. null means no baseline has been established yet
+// -- the first poll after (re)starting only records where the mailbox
+// currently stands rather than bulk-processing every pre-existing unread
+// email in the inbox.
+let lastSeenUid = null;
+
 /**
  * Initialize IMAP connection
  */
@@ -41,6 +47,35 @@ function initializeImap() {
   });
 
   return imapConnection;
+}
+
+/**
+ * Connect the IMAP client and wait until it's ready to accept commands.
+ * initializeImap() only constructs the client and wires up listeners --
+ * without this, openBox()/search() run against a socket that never
+ * actually performed the connect/login handshake.
+ * @param {Imap} imap
+ * @returns {Promise<Imap>}
+ */
+function connectImap(imap) {
+  return new Promise((resolve, reject) => {
+    if (imap.state === "authenticated") {
+      return resolve(imap);
+    }
+
+    const onReady = () => {
+      imap.removeListener("error", onError);
+      resolve(imap);
+    };
+    const onError = (err) => {
+      imap.removeListener("ready", onReady);
+      reject(err);
+    };
+
+    imap.once("ready", onReady);
+    imap.once("error", onError);
+    imap.connect();
+  });
 }
 
 /**
@@ -98,87 +133,157 @@ function stopPolling() {
  * @param {Function} onNewEmail - Callback when new email is received
  */
 async function pollEmails(onNewEmail) {
-  return new Promise((resolve, reject) => {
-    const imap = initializeImap();
+  const imap = initializeImap();
+  await connectImap(imap);
 
+  return new Promise((resolve, reject) => {
     imap.openBox("INBOX", false, (err, box) => {
       if (err) {
         console.error("Error opening inbox:", err);
         return reject(err);
       }
 
-      // Search for unread emails
-      imap.search(["UNSEEN"], (err, results) => {
+      // Search for unread emails. A UID range like "N:*" is filtered
+      // client-side below rather than trusted as-is: per RFC 3501, "N:*"
+      // always includes the mailbox's highest-numbered message even when N
+      // exceeds every real UID, so the server-side range alone would still
+      // re-match the baseline message itself on the first poll with no
+      // genuinely new mail.
+      imap.search(["UNSEEN"], (err, allResults) => {
         if (err) {
           console.error("Error searching for emails:", err);
           imap.end();
           return reject(err);
         }
 
+        if (lastSeenUid === null) {
+          if (allResults.length === 0) {
+            lastSeenUid = 0;
+          } else {
+            lastSeenUid = Math.max(...allResults);
+          }
+          console.log(
+            `Baseline established at UID ${lastSeenUid}: skipping ${allResults.length} pre-existing unread email(s); only new mail will be processed from here on.`
+          );
+          imap.end();
+          return resolve();
+        }
+
+        const results = allResults.filter((uid) => uid > lastSeenUid);
+
         if (results.length === 0) {
           imap.end();
           return resolve();
         }
 
+        lastSeenUid = Math.max(lastSeenUid, ...results);
         console.log(`Found ${results.length} unread emails`);
 
         const f = imap.fetch(results, { bodies: "" });
         let emailCount = 0;
+        let fetchEnded = false;
+        let pendingMessages = 0;
+        let settled = false;
 
-        f.on("message", (msg, seqno) => {
-          simpleParser(msg, async (err, parsed) => {
-            if (err) {
-              console.error("Error parsing email:", err);
-              return;
+        // The raw IMAP fetch (just downloading message bodies) finishes far
+        // faster than our per-email processing (triage/order/quote/email
+        // sending can take several seconds), so the connection must stay
+        // open -- and setFlags must actually complete -- for every message
+        // before ending it. Ending early on fetch completion silently drops
+        // the \Seen flag, so the same email gets reprocessed on every poll.
+        function finishIfDone() {
+          if (fetchEnded && pendingMessages === 0 && !settled) {
+            settled = true;
+            console.log(`Processed ${emailCount} emails`);
+            imap.end();
+            resolve();
+          }
+        }
+
+        function markSeen(uid) {
+          return new Promise((res) => {
+            if (!uid) {
+              console.error("Error marking email as read: no UID captured for this message");
+              return res();
             }
+            // setFlags() always issues a UID STORE internally, so it must be
+            // given the message's actual UID -- the "message" event's second
+            // argument is a plain sequence number, not a UID, and passing
+            // that silently flags the wrong message (or nothing).
+            imap.setFlags(uid, ["\\Seen"], (err) => {
+              if (err) {
+                console.error("Error marking email as read:", err);
+              }
+              res();
+            });
+          });
+        }
 
-            try {
-              const emailData = {
-                messageId: parsed.messageId,
-                from: parsed.from.text,
-                to: parsed.to.text,
-                subject: parsed.subject,
-                text: parsed.text || "",
-                html: parsed.html || "",
-                timestamp: parsed.date,
-                source: "outlook_imap"
-              };
+        f.on("message", (msg) => {
+          pendingMessages++;
+          let uid = null;
 
-              console.log("Processing email:", {
-                from: emailData.from,
-                subject: emailData.subject,
-                timestamp: emailData.timestamp
-              });
+          msg.once("attributes", (attrs) => {
+            uid = attrs.uid;
+          });
 
-              // Call the callback to process the email
-              if (onNewEmail) {
-                await onNewEmail(emailData);
+          // ImapMessage isn't itself a stream -- the raw RFC822 body only
+          // becomes available via its "body" event, which is what
+          // simpleParser actually needs to read.
+          msg.on("body", (stream) => {
+            simpleParser(stream, async (err, parsed) => {
+              if (err) {
+                console.error("Error parsing email:", err);
+                pendingMessages--;
+                finishIfDone();
+                return;
               }
 
-              // Mark email as read
-              imap.setFlags(seqno, ["\\Seen"], (err) => {
-                if (err) {
-                  console.error("Error marking email as read:", err);
-                }
-              });
+              try {
+                const emailData = {
+                  messageId: parsed.messageId,
+                  from: parsed.from.text,
+                  to: parsed.to.text,
+                  subject: parsed.subject,
+                  text: parsed.text || "",
+                  html: parsed.html || "",
+                  timestamp: parsed.date,
+                  source: "outlook_imap"
+                };
 
-              emailCount++;
-            } catch (error) {
-              console.error("Error processing email:", error);
-            }
+                console.log("Processing email:", {
+                  from: emailData.from,
+                  subject: emailData.subject,
+                  timestamp: emailData.timestamp
+                });
+
+                // Call the callback to process the email
+                if (onNewEmail) {
+                  await onNewEmail(emailData);
+                }
+
+                await markSeen(uid);
+                emailCount++;
+              } catch (error) {
+                console.error("Error processing email:", error);
+              } finally {
+                pendingMessages--;
+                finishIfDone();
+              }
+            });
           });
         });
 
         f.on("error", (err) => {
           console.error("Error fetching emails:", err);
+          settled = true;
           imap.end();
           reject(err);
         });
 
         f.on("end", () => {
-          console.log(`Processed ${emailCount} emails`);
-          imap.end();
-          resolve();
+          fetchEnded = true;
+          finishIfDone();
         });
       });
     });
