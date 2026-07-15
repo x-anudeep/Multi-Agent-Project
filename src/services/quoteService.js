@@ -54,7 +54,59 @@ async function listQuotesForOrder(orderId) {
   return ordersRepository.listQuotesByOrderId(orderId);
 }
 
+async function getQuoteForOrder(orderId, quoteId) {
+  await getOrder(orderId);
+  const quote = await ordersRepository.findQuoteById(quoteId);
+  if (!quote || quote.orderId !== orderId) {
+    const error = new Error(`Quote ${quoteId} not found for order ${orderId}`);
+    error.status = 404;
+    throw error;
+  }
+  return quote;
+}
+
+/**
+ * Manually approve a quote that quoteReviewAgent flagged as
+ * requires_manual_review, allowing it to be emailed to the customer.
+ */
+async function approveQuote(orderId, quoteId, notes) {
+  const quote = await getQuoteForOrder(orderId, quoteId);
+  if (quote.status === "approved") return quote;
+
+  if (quote.status === "rejected") {
+    const error = new Error(`Quote ${quoteId} was already rejected and cannot be approved`);
+    error.status = 400;
+    throw error;
+  }
+
+  return ordersRepository.updateQuote(quoteId, {
+    status: "approved",
+    reviewNotes: [
+      ...(quote.reviewNotes || []),
+      { agent: "manual_reviewer", result: "approved", notes: notes || null, timestamp: new Date().toISOString() }
+    ]
+  });
+}
+
+/**
+ * Manually reject a quote; it will never be emailed to the customer.
+ */
+async function rejectQuote(orderId, quoteId, notes) {
+  const quote = await getQuoteForOrder(orderId, quoteId);
+  if (quote.status === "rejected") return quote;
+
+  return ordersRepository.updateQuote(quoteId, {
+    status: "rejected",
+    reviewNotes: [
+      ...(quote.reviewNotes || []),
+      { agent: "manual_reviewer", result: "rejected", notes: notes || null, timestamp: new Date().toISOString() }
+    ]
+  });
+}
+
 module.exports = {
   generateQuote,
-  listQuotesForOrder
+  listQuotesForOrder,
+  approveQuote,
+  rejectQuote
 };

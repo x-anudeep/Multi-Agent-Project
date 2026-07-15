@@ -172,6 +172,39 @@ test("quote-to-PDF-to-email: approved quote generates a PDF and logs a delivery 
   fs.unlinkSync(sendBody.data.pdfPath);
 });
 
+test("quote review: a manually rejected quote cannot be sent or re-approved", async () => {
+  const { body: orderBody } = await api("/api/orders", {
+    method: "POST",
+    body: JSON.stringify({
+      customer: { name: "Review Reject Co", email: "e2e-quote-reject@example.com" },
+      shipment: {
+        pickup: "Phoenix",
+        dropoff: "Los Angeles",
+        pickupDate: "2026-07-16",
+        weight: "1200 kg",
+        volume: "8 m3",
+        commodity: "electronics"
+      }
+    })
+  });
+  const orderId = orderBody.data.id;
+
+  const { body: quoteBody } = await api(`/api/orders/${orderId}/quotes`, { method: "POST" });
+  const quoteId = quoteBody.data.quote.id;
+
+  const { body: rejectBody } = await api(`/api/orders/${orderId}/quotes/${quoteId}/review/reject`, {
+    method: "POST",
+    body: JSON.stringify({ notes: "test rejection" })
+  });
+  assert.equal(rejectBody.data.status, "rejected");
+
+  const sendAttempt = await api(`/api/orders/${orderId}/quotes/${quoteId}/send-pdf`, { method: "POST" });
+  assert.equal(sendAttempt.status, 409);
+
+  const approveAttempt = await api(`/api/orders/${orderId}/quotes/${quoteId}/review/approve`, { method: "POST" });
+  assert.equal(approveAttempt.status, 400);
+});
+
 test("manual review workflow: low-confidence intake can be approved into an order", async () => {
   const { body: intakeBody } = await api("/api/intake/email", {
     method: "POST",

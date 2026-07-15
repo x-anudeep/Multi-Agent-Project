@@ -18,7 +18,27 @@ async function listQuotes(req, res, next) {
   }
 }
 
+async function approveQuote(req, res, next) {
+  try {
+    const quote = await quoteService.approveQuote(req.params.orderId, req.params.quoteId, req.body?.notes);
+    res.json({ data: quote });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function rejectQuote(req, res, next) {
+  try {
+    const quote = await quoteService.rejectQuote(req.params.orderId, req.params.quoteId, req.body?.notes);
+    res.json({ data: quote });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   createQuote,
-  listQuotes
+  listQuotes,
+  approveQuote,
+  rejectQuote
 };

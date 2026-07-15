@@ -222,6 +222,30 @@ async function findQuoteById(id) {
   return normalizeQuoteRow(result.rows[0] || null);
 }
 
+async function updateQuote(id, changes) {
+  const existing = await findQuoteById(id);
+  if (!existing) return null;
+
+  const pool = getPool();
+  const updated = normalizeQuoteRow({ ...existing, ...changes, updatedAt: timestamp() });
+
+  if (!pool) {
+    memory.quotes.set(id, updated);
+    return updated;
+  }
+
+  const result = await pool.query(
+    `UPDATE quotes SET
+      status = $2,
+      review_notes = $3,
+      updated_at = NOW()
+    WHERE id = $1 RETURNING *`,
+    [id, updated.status, updated.reviewNotes || []]
+  );
+
+  return normalizeQuoteRow(result.rows[0]);
+}
+
 module.exports = {
   createOrder,
   listOrders,
@@ -230,5 +254,6 @@ module.exports = {
   createQuote,
   listQuotesByOrderId,
   findQuoteById,
+  updateQuote,
   memory
 };
