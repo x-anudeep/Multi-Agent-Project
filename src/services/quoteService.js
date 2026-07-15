@@ -1,14 +1,11 @@
 const ordersRepository = require("../db/repositories/ordersRepository");
 const { getOrder } = require("./orderService");
-const { runTriageAgent } = require("../agents/triageAgent");
-const { runRouteCapacityAgent } = require("../agents/routeCapacityAgent");
-const { runPricingAgent } = require("../agents/pricingAgent");
-const { runLoadOptimizationAgent } = require("../agents/loadOptimizationAgent");
-const { runQuoteReviewAgent } = require("../agents/quoteReviewAgent");
+const { runLangChainQuotePipeline } = require("../agents/langchainAgentPipeline");
 
 async function generateQuote(orderId) {
   const order = await getOrder(orderId);
-  const triage = runTriageAgent(order.normalizedRequest || order);
+  const pipeline = await runLangChainQuotePipeline(order);
+  const { triage, routeCapacity, pricing, loadOptimization, review } = pipeline;
 
   if (!triage.valid) {
     const error = new Error(`Order is missing fields: ${triage.missingFields.join(", ")}`);
@@ -16,16 +13,11 @@ async function generateQuote(orderId) {
     throw error;
   }
 
-  const routeCapacity = runRouteCapacityAgent(order);
   if (!routeCapacity.capacityAvailable) {
     const error = new Error("No compatible vehicle capacity is currently available");
     error.status = 409;
     throw error;
   }
-
-  const pricing = runPricingAgent(order, routeCapacity);
-  const loadOptimization = runLoadOptimizationAgent(pricing, routeCapacity);
-  const review = runQuoteReviewAgent(order, routeCapacity, loadOptimization);
 
   const quote = await ordersRepository.createQuote({
     orderId: order.id,
@@ -46,6 +38,7 @@ async function generateQuote(orderId) {
 
   return {
     quote,
+    orchestration: "langchain_runnable_pipeline",
     agents: {
       triage,
       routeCapacity,

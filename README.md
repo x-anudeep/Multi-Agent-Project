@@ -78,6 +78,9 @@ Completed items:
 - Fleetbase local Docker setup automation
 - Fleetbase API key generation for local development
 - Fleetbase order sync through `POST /v1/orders`
+- LangChain runnable pipeline for backend agents
+- LangChain triage endpoint for structured payloads, email text, and call transcripts
+- Optional OpenAI extraction through `@langchain/openai`
 - Triage Agent
 - Route and Capacity Agent
 - Pricing Agent
@@ -198,6 +201,12 @@ POST /api/orders/:orderId/quotes
 GET /api/orders/:orderId/quotes
 ```
 
+Agents:
+
+```http
+POST /api/agents/triage
+```
+
 ## Example Order Payload
 
 Person 2 should send cleaned phone/email data to the backend in this shape:
@@ -261,7 +270,32 @@ Expected result:
 
 ## How The Agents Work
 
-The current agents are real backend logic, but they are rule-based. They are not LangChain/OpenAI LLM agents yet.
+The current agents are real backend logic and are orchestrated through a LangChain runnable pipeline.
+
+The core business logic is deterministic and rule-based so the project works locally without an API key. If `OPENAI_API_KEY` is set, the triage chain can use `@langchain/openai` to extract shipment fields from raw email or transcript text. If no key is set, the chain uses a local heuristic extractor.
+
+LangChain file:
+
+```text
+src/agents/langchainAgentPipeline.js
+```
+
+Optional `.env` values:
+
+```env
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+```
+
+Person 2 can test transcript/email triage with:
+
+```bash
+curl -X POST http://localhost:3000/api/agents/triage \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transcript": "Customer: Acme Logistics. Pickup Phoenix to Los Angeles on 2026-07-16 with 1200 kg and 8 m3 cargo: electronics. Email ops@example.com"
+  }'
+```
 
 ### 1. Triage Agent
 
@@ -433,6 +467,8 @@ Implemented:
 - Node.js
 - Express.js
 - HTML/CSS/JavaScript frontend
+- LangChain
+- Optional OpenAI model integration
 - Fleetbase
 - Docker/Colima
 - REST APIs
