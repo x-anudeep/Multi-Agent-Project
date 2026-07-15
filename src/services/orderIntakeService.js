@@ -9,6 +9,27 @@ const { triage } = require("./agentService");
 const { createOrder } = require("./orderService");
 const { normalizeShipment, validateNormalizedShipment } = require("./shipmentNormalizer");
 const { getPool } = require("../db/pool");
+const reviewQueueRepository = require("../db/repositories/reviewQueueRepository");
+
+/**
+ * Persist a low-confidence/failed extraction to the manual review queue
+ * @param {Object} params
+ * @returns {Promise<Object>} The created review queue entry
+ */
+async function flagForReview({ source, text, triageResult, metadata, reason }) {
+  console.log(`Flagging intake for manual review (${reason}).`);
+
+  const entry = await reviewQueueRepository.createReviewEntry({
+    reviewType: "extraction_validation",
+    reason,
+    rawData: { source, text, metadata },
+    triageResult,
+    status: "pending"
+  });
+
+  console.log("Stored in review queue:", { reviewId: entry.id, reason });
+  return entry;
+}
 
 /**
  * Process transcript/email through triage and create order if valid
@@ -43,26 +64,14 @@ async function processIntake(input) {
 
     // Step 2: Check if triage extracted valid shipment
     if (!triageResult.triage?.valid || triageResult.triage?.confidence < 0.6) {
-      console.log("Triage validation failed or low confidence. Flagging for manual review.");
-
-      // Store for manual review
-      const reviewRecord = {
-        source,
-        rawText: text,
-        triageResult,
-        metadata,
-        timestamp: new Date().toISOString(),
-        status: "requires_review",
-        reason: triageResult.triage?.valid ? "low_confidence" : "invalid_extraction"
-      };
-
-      // TODO: Store in review queue table
-      console.log("Stored for manual review:", reviewRecord);
+      const reason = triageResult.triage?.valid ? "low_confidence" : "invalid_extraction";
+      const reviewEntry = await flagForReview({ source, text, triageResult, metadata, reason });
 
       return {
         success: false,
         status: "requires_review",
-        reason: reviewRecord.reason,
+        reason,
+        reviewId: reviewEntry.id,
         triageResult
       };
     }
@@ -72,9 +81,18 @@ async function processIntake(input) {
     const shipmentData = extractShipmentFromTriage(triageResult);
 
     if (!shipmentData) {
+      const reviewEntry = await flagForReview({
+        source,
+        text,
+        triageResult,
+        metadata,
+        reason: "extraction_failed"
+      });
+
       return {
         success: false,
         status: "extraction_failed",
+        reviewId: reviewEntry.id,
         triageResult
       };
     }
@@ -142,23 +160,29 @@ async function processIntake(input) {
  */
 function extractShipmentFromTriage(triageResult) {
   try {
-    const shipmentData = {};
-
-    // The triage result should have extracted fields in the triage object
-    if (triageResult.triage) {
-      // Map common field names from triage result
-      shipmentData.customerName = triageResult.triage.customerName || triageResult.triage.company;
-      shipmentData.pickup = triageResult.triage.pickup || triageResult.triage.origin;
-      shipmentData.dropoff = triageResult.triage.dropoff || triageResult.triage.destination;
-      shipmentData.pickupDate = triageResult.triage.pickupDate || triageResult.triage.date;
-      shipmentData.weight = triageResult.triage.weight;
-      shipmentData.volume = triageResult.triage.volume;
-      shipmentData.commodity = triageResult.triage.commodity || triageResult.triage.cargoType;
+    // The triage agent's actual output nests extracted fields under
+    // normalizedShipment (see src/agents/triageAgent.js), not directly on triage.
+    const normalized = triageResult.triage?.normalizedShipment;
+    if (!normalized) {
+      console.warn("Triage result has no normalizedShipment to extract from.");
+      return null;
     }
 
-    // Validate that required fields are present
-    const requiredFields = ["pickup", "dropoff", "weight", "volume"];
-    const missingFields = requiredFields.filter((field) => !shipmentData[field]);
+    const shipmentData = {
+      customerName: normalized.customerName,
+      pickup: normalized.origin,
+      dropoff: normalized.destination,
+      pickupDate: normalized.pickupDate,
+      weight: normalized.weightKg,
+      volume: normalized.volumeM3,
+      commodity: normalized.cargoType
+    };
+
+    // Mirrors shipmentNormalizer's validation: weight OR volume is enough.
+    const missingFields = [];
+    if (!shipmentData.pickup) missingFields.push("pickup");
+    if (!shipmentData.dropoff) missingFields.push("dropoff");
+    if (!shipmentData.weight && !shipmentData.volume) missingFields.push("weight or volume");
 
     if (missingFields.length > 0) {
       console.warn("Missing required fields:", missingFields);
