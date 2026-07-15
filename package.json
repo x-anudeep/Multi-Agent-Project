@@ -1,0 +1,25 @@
+{
+  "name": "multi-agent-logistics-backend",
+  "version": "1.0.0",
+  "description": "Backend and AI agent services for a multi-agent logistics quotation system.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "logistics",
+    "multi-agent",
+    "express",
+    "fleetbase"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "uuid": "^11.0.5"
+  }
+}
