@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Logistics Agent Console</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Workspace navigation">
+        <div class="brand">
+          <div class="brand-mark">LA</div>
+          <div>
+            <strong>Logistics Agents</strong>
+            <span>Backend console</span>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <a href="#intake" class="active">Order Intake</a>
+          <a href="#orders">Orders</a>
+          <a href="#agents">Agent Review</a>
+          <a href="#handoff">Person 2</a>
+        </nav>
+
+        <div class="status-card">
+          <span class="status-dot" id="apiDot"></span>
+          <div>
+            <strong id="apiStatus">Checking API</strong>
+            <span id="apiService">localhost:3000</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Multi-agent quotation workflow</p>
+            <h1>Dark Operations Console</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" id="refreshButton" title="Refresh orders" type="button">R</button>
+            <button class="primary-button" id="sampleButton" type="button">Load Sample</button>
+          </div>
+        </header>
+
+        <section class="metric-grid" aria-label="Order metrics">
+          <article>
+            <span>Total Orders</span>
+            <strong id="totalOrders">0</strong>
+          </article>
+          <article>
+            <span>Approved Quotes</span>
+            <strong id="approvedQuotes">0</strong>
+          </article>
+          <article>
+            <span>Avg Quote</span>
+            <strong id="averageQuote">$0</strong>
+          </article>
+          <article>
+            <span>Workflow State</span>
+            <strong id="workflowState">Ready</strong>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <section class="panel intake-panel" id="intake">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Create order</p>
+                <h2>Shipment Intake</h2>
+              </div>
+              <span class="pill">Person 1 API</span>
+            </div>
+
+            <form id="orderForm" class="order-form">
+              <label>
+                Customer
+                <input name="customerName" required placeholder="Acme Logistics">
+              </label>
+              <label>
+                Email
+                <input name="customerEmail" type="email" placeholder="ops@example.com">
+              </label>
+              <label>
+                Pickup
+                <input name="origin" required placeholder="Phoenix">
+              </label>
+              <label>
+                Dropoff
+                <input name="destination" required placeholder="Los Angeles">
+              </label>
+              <label>
+                Pickup Date
+                <input name="pickupDate" type="date">
+              </label>
+              <label>
+                Cargo Type
+                <input name="cargoType" placeholder="electronics">
+              </label>
+              <label>
+                Weight KG
+                <input name="weightKg" type="number" min="0" step="0.1" required placeholder="2500">
+              </label>
+              <label>
+                Volume M3
+                <input name="volumeM3" type="number" min="0" step="0.1" required placeholder="12.5">
+              </label>
+              <button class="primary-button form-submit" type="submit">Create Order</button>
+            </form>
+          </section>
+
+          <section class="panel" id="orders">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Live records</p>
+                <h2>Orders</h2>
+              </div>
+              <span class="pill" id="orderCount">0 loaded</span>
+            </div>
+            <div id="ordersList" class="orders-list empty-state">No orders yet.</div>
+          </section>
+        </section>
+
+        <section class="panel agent-panel" id="agents">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Quote intelligence</p>
+              <h2>Agent Output</h2>
+            </div>
+            <span class="pill" id="selectedOrderPill">Select an order</span>
+          </div>
+
+          <div class="agent-layout">
+            <div class="quote-card" id="quoteSummary">
+              <span>No quote generated</span>
+              <strong>Select an order and run quote generation.</strong>
+            </div>
+            <div class="timeline" id="agentTimeline"></div>
+          </div>
+        </section>
+
+        <section class="panel handoff-panel" id="handoff">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Next teammate</p>
+              <h2>Person 2 Workbench</h2>
+            </div>
+            <span class="pill">Skeleton ready</span>
+          </div>
+          <div class="handoff-grid">
+            <article><strong>Twilio</strong><span>Inbound call webhooks and recording metadata.</span></article>
+            <article><strong>Whisper</strong><span>Speech-to-text cleanup and order payload creation.</span></article>
+            <article><strong>Email Parser</strong><span>Outlook intake, duplicate checks, and API submission.</span></article>
+            <article><strong>PDF + Email</strong><span>Approved quote PDF generation and SMTP delivery.</span></article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

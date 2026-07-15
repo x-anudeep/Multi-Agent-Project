@@ -202,6 +202,12 @@ If `DATABASE_URL` is left empty, the backend uses an in-memory repository for
 local demos. Use `src/db/schema.sql` to create PostgreSQL tables when a database
 is available.
 
+Open the dark mode operations console at:
+
+```text
+http://localhost:3000
+```
+
 ## Endpoints
 
 - `GET /health`
