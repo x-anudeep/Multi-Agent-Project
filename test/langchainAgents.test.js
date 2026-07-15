@@ -4,6 +4,7 @@ const {
   runLangChainTriage,
   runLangChainQuotePipeline
 } = require("../src/agents/langchainAgentPipeline");
+const { env } = require("../src/config/env");
 
 test("LangChain triage chain handles structured shipment payloads", async () => {
   const result = await runLangChainTriage({
@@ -26,14 +27,26 @@ test("LangChain triage chain handles structured shipment payloads", async () => 
 });
 
 test("LangChain triage chain extracts a usable shipment from raw text without an LLM key", async () => {
-  const result = await runLangChainTriage({
-    transcript: "Customer: Acme Logistics. Please pickup Phoenix to Los Angeles on 2026-07-16 with 1200 kg and 8 m3 cargo: electronics. Email ops@example.com"
-  });
+  // Force the no-LLM fallback path regardless of whatever OPENAI_API_KEY /
+  // GROQ_API_KEY happen to be set in the environment this test runs in.
+  const originalOpenAiKey = env.openai.apiKey;
+  const originalGroqKey = env.groq.apiKey;
+  env.openai.apiKey = "";
+  env.groq.apiKey = "";
 
-  assert.equal(result.extractionSource, "langchain_heuristic");
-  assert.equal(result.triage.valid, true);
-  assert.equal(result.triage.normalizedShipment.origin, "Phoenix");
-  assert.equal(result.triage.normalizedShipment.destination, "Los Angeles");
+  try {
+    const result = await runLangChainTriage({
+      transcript: "Customer: Acme Logistics. Please pickup Phoenix to Los Angeles on 2026-07-16 with 1200 kg and 8 m3 cargo: electronics. Email ops@example.com"
+    });
+
+    assert.equal(result.extractionSource, "langchain_heuristic");
+    assert.equal(result.triage.valid, true);
+    assert.equal(result.triage.normalizedShipment.origin, "Phoenix");
+    assert.equal(result.triage.normalizedShipment.destination, "Los Angeles");
+  } finally {
+    env.openai.apiKey = originalOpenAiKey;
+    env.groq.apiKey = originalGroqKey;
+  }
 });
 
 test("LangChain quote pipeline runs every backend agent", async () => {

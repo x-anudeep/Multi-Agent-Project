@@ -52,6 +52,19 @@ async function apiForm(path, form) {
   return { status: response.status, text: await response.text() };
 }
 
+// The voice webhook responds to Twilio immediately and creates the order
+// asynchronously afterward (a caller shouldn't wait on hold for an LLM
+// call), so tests must poll rather than check once right after the response.
+async function waitFor(checkFn, { timeoutMs = 5000, intervalMs = 100 } = {}) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const result = await checkFn();
+    if (result) return result;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return null;
+}
+
 test("phone-to-order: Gather speech intake creates an order", async () => {
   const callSid = "CA-e2e-phone-1";
   const from = "+15550001111";
@@ -73,8 +86,10 @@ test("phone-to-order: Gather speech intake creates an order", async () => {
   assert.equal(speech.status, 200);
   assert.match(speech.text, /<Hangup/);
 
-  const { body: orders } = await api("/api/orders");
-  const created = orders.data.find((order) => order.customerPhone === from || order.rawRequest?.metadata?.callerPhone === from);
+  const created = await waitFor(async () => {
+    const { body: orders } = await api("/api/orders");
+    return orders.data.find((order) => order.customerPhone === from || order.rawRequest?.metadata?.callerPhone === from);
+  });
   assert.ok(created, "expected an order created from the phone call");
   assert.equal(created.origin, "Chicago");
   assert.equal(created.destination, "Denver");

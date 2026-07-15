@@ -50,41 +50,59 @@ function heuristicExtractShipment(text) {
   };
 }
 
-async function extractShipmentWithOpenAI(text) {
-  if (!env.openai.apiKey) return null;
+const EXTRACTION_SYSTEM_PROMPT =
+  "Extract logistics shipment details from the text. Return only JSON with customer.name, customer.email, shipment.pickup, shipment.dropoff, shipment.pickupDate, shipment.weight, shipment.volume, shipment.commodity. Use empty strings for unknown fields.";
+
+async function extractShipmentWithChatModel({ apiKey, model, baseUrl }, text) {
+  if (!apiKey) return null;
 
   try {
     const { ChatOpenAI } = await import("@langchain/openai");
     const { ChatPromptTemplate } = await import("@langchain/core/prompts");
     const { StringOutputParser } = await import("@langchain/core/output_parsers");
 
-    const model = new ChatOpenAI({
-      apiKey: env.openai.apiKey,
-      model: env.openai.model,
-      temperature: 0
+    const chatModel = new ChatOpenAI({
+      apiKey,
+      model,
+      temperature: 0,
+      ...(baseUrl ? { configuration: { baseURL: baseUrl } } : {})
     });
 
     const prompt = ChatPromptTemplate.fromMessages([
-      [
-        "system",
-        "Extract logistics shipment details from the text. Return only JSON with customer.name, customer.email, shipment.pickup, shipment.dropoff, shipment.pickupDate, shipment.weight, shipment.volume, shipment.commodity. Use empty strings for unknown fields."
-      ],
+      ["system", EXTRACTION_SYSTEM_PROMPT],
       ["human", "{text}"]
     ]);
 
-    const output = await prompt.pipe(model).pipe(new StringOutputParser()).invoke({ text });
+    const output = await prompt.pipe(chatModel).pipe(new StringOutputParser()).invoke({ text });
     return parseJsonFromText(output);
   } catch (error) {
     return null;
   }
 }
 
+async function extractShipmentWithOpenAI(text) {
+  return extractShipmentWithChatModel({ apiKey: env.openai.apiKey, model: env.openai.model }, text);
+}
+
+async function extractShipmentWithGroq(text) {
+  return extractShipmentWithChatModel(
+    { apiKey: env.groq.apiKey, model: env.groq.model, baseUrl: env.groq.baseUrl },
+    text
+  );
+}
+
 async function extractShipmentFromText(text) {
-  const llmExtracted = await extractShipmentWithOpenAI(text);
-  return {
-    source: llmExtracted ? "langchain_openai" : "langchain_heuristic",
-    payload: llmExtracted || heuristicExtractShipment(text)
-  };
+  const openAiExtracted = await extractShipmentWithOpenAI(text);
+  if (openAiExtracted) {
+    return { source: "langchain_openai", payload: openAiExtracted };
+  }
+
+  const groqExtracted = await extractShipmentWithGroq(text);
+  if (groqExtracted) {
+    return { source: "langchain_groq", payload: groqExtracted };
+  }
+
+  return { source: "langchain_heuristic", payload: heuristicExtractShipment(text) };
 }
 
 async function runLangChainTriage(input) {
