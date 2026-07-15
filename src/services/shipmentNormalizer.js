@@ -1,6 +1,7 @@
 function toNumber(value, fallback = 0) {
   if (value === undefined || value === null || value === "") return fallback;
-  const parsed = Number(String(value).replace(/[^0-9.]/g, ""));
+  const match = String(value).replace(/,/g, "").match(/\d+(\.\d+)?/);
+  const parsed = match ? Number(match[0]) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 

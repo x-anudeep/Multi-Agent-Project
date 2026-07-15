@@ -171,34 +171,45 @@ Customer Email
 ```
 AI-Logistics-System/
 │
-├── backend/
-│   ├── api/
+├── src/
+│   ├── agents/
 │   ├── controllers/
+│   ├── db/
+│   ├── middleware/
 │   ├── routes/
-│   ├── services/
-│   └── database/
-│
-├── frontend/
-│
-├── agents/
-│   ├── triage_agent/
-│   ├── route_agent/
-│   ├── pricing_agent/
-│   ├── optimization_agent/
-│   └── review_agent/
-│
+│   └── services/
 ├── automation/
-│   ├── claude_computer_use/
-│   ├── speech_processing/
-│   ├── email_parser/
-│   └── fleetbase/
-│
-├── documents/
-│
+├── docs/
+├── test/
 ├── README.md
 │
 └── package.json
 ```
+
+---
+
+# Backend API
+
+## Local Setup
+
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
+
+If `DATABASE_URL` is left empty, the backend uses an in-memory repository for
+local demos. Use `src/db/schema.sql` to create PostgreSQL tables when a database
+is available.
+
+## Endpoints
+
+- `GET /health`
+- `POST /api/orders`
+- `GET /api/orders`
+- `GET /api/orders/:id`
+- `POST /api/orders/:orderId/quotes`
+- `GET /api/orders/:orderId/quotes`
 
 ---
 

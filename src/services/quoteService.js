@@ -3,6 +3,8 @@ const { getOrder } = require("./orderService");
 const { runTriageAgent } = require("../agents/triageAgent");
 const { runRouteCapacityAgent } = require("../agents/routeCapacityAgent");
 const { runPricingAgent } = require("../agents/pricingAgent");
+const { runLoadOptimizationAgent } = require("../agents/loadOptimizationAgent");
+const { runQuoteReviewAgent } = require("../agents/quoteReviewAgent");
 
 async function generateQuote(orderId) {
   const order = await getOrder(orderId);
@@ -22,18 +24,23 @@ async function generateQuote(orderId) {
   }
 
   const pricing = runPricingAgent(order, routeCapacity);
+  const loadOptimization = runLoadOptimizationAgent(pricing, routeCapacity);
+  const review = runQuoteReviewAgent(order, routeCapacity, loadOptimization);
+
   const quote = await ordersRepository.createQuote({
     orderId: order.id,
-    vehicleId: pricing.vehicleId,
+    vehicleId: loadOptimization.vehicleId,
     basePrice: pricing.basePrice,
-    discountAmount: pricing.discountAmount,
-    finalPrice: pricing.finalPrice,
+    discountAmount: loadOptimization.discountAmount,
+    finalPrice: loadOptimization.finalPrice,
     currency: pricing.currency,
-    status: "priced",
+    status: review.status,
     reviewNotes: [
       { agent: triage.agent, result: triage.nextAction },
       { agent: routeCapacity.agent, result: routeCapacity.nextAction },
-      { agent: pricing.agent, result: pricing.nextAction }
+      { agent: pricing.agent, result: pricing.nextAction },
+      { agent: loadOptimization.agent, result: loadOptimization.reason },
+      { agent: review.agent, result: review.nextAction, issues: review.issues }
     ]
   });
 
@@ -42,7 +49,9 @@ async function generateQuote(orderId) {
     agents: {
       triage,
       routeCapacity,
-      pricing
+      pricing,
+      loadOptimization,
+      review
     }
   };
 }
