@@ -1,15 +1,43 @@
 /**
  * Order Intake Service
- * 
+ *
  * Orchestrates the flow from captured data (email/transcript) through
- * triage validation to order creation with deduplication.
+ * triage validation to order creation with deduplication. Per the
+ * project handoff, this calls Person 1's backend through its own HTTP
+ * API (POST /api/agents/triage, POST /api/orders) rather than importing
+ * the service functions directly, treating those endpoints as the
+ * integration boundary.
  */
 
-const { triage } = require("./agentService");
-const { createOrder } = require("./orderService");
-const { normalizeShipment, validateNormalizedShipment } = require("./shipmentNormalizer");
 const ordersRepository = require("../db/repositories/ordersRepository");
 const reviewQueueRepository = require("../db/repositories/reviewQueueRepository");
+const { env } = require("../config/env");
+
+// Overridable so tests (which bind the app to an OS-assigned ephemeral
+// port) can point this at their own instance instead of env.port.
+let apiBaseUrl = process.env.API_BASE_URL || `http://localhost:${env.port}`;
+
+function setApiBaseUrl(url) {
+  apiBaseUrl = url;
+}
+
+async function callApi(path, payload) {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(body.error?.message || `Request to ${path} failed`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return body.data;
+}
 
 /**
  * Persist a low-confidence/failed extraction to the manual review queue
@@ -51,7 +79,7 @@ async function processIntake(input) {
   try {
     // Step 1: Run triage to validate shipment extraction
     console.log("Step 1: Running triage validation...");
-    const triageResult = await triage({
+    const triageResult = await callApi("/api/agents/triage", {
       transcript: text,
       source
     });
@@ -114,7 +142,7 @@ async function processIntake(input) {
 
     // Step 5: Create order
     console.log("Step 5: Creating order...");
-    const orderResult = await createOrder({
+    const orderResult = await callApi("/api/orders", {
       customer: {
         name: shipmentData.customerName || "Unknown Customer",
         email: metadata.email || metadata.senderEmail || ""
@@ -292,5 +320,6 @@ module.exports = {
   processEmail,
   processTranscription,
   extractShipmentFromTriage,
-  checkForDuplicate
+  checkForDuplicate,
+  setApiBaseUrl
 };

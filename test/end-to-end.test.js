@@ -14,6 +14,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const { createApp } = require("../src/app");
+const orderIntakeService = require("../src/services/orderIntakeService");
 
 let server;
 let baseUrl;
@@ -23,6 +24,9 @@ test.before(() => {
   server = app.listen(0);
   const { port } = server.address();
   baseUrl = `http://localhost:${port}`;
+  // orderIntakeService calls the app's own HTTP API (not a direct function
+  // call), so it needs to know this test instance's ephemeral port.
+  orderIntakeService.setApiBaseUrl(baseUrl);
 });
 
 test.after(() => {
