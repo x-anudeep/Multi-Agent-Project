@@ -3,6 +3,7 @@ const path = require("path");
 const agentsRoutes = require("./routes/agentsRoutes");
 const integrationsRoutes = require("./routes/integrationsRoutes");
 const ordersRoutes = require("./routes/ordersRoutes");
+const intakeRoutes = require("./routes/intakeRoutes");
 const { errorHandler } = require("./middleware/errorHandler");
 
 function createApp() {
@@ -17,6 +18,7 @@ function createApp() {
   app.use("/api/agents", agentsRoutes);
   app.use("/api/integrations", integrationsRoutes);
   app.use("/api/orders", ordersRoutes);
+  app.use("/api/intake", intakeRoutes);
   app.use(errorHandler);
 
   return app;
