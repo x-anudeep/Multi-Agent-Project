@@ -11,9 +11,19 @@ const path = require("path");
 const { OpenAI } = require("openai");
 const { env } = require("../../src/config/env");
 
-const openai = new OpenAI({
-  apiKey: env.openai.apiKey
-});
+let openai = null;
+
+/**
+ * Get OpenAI client instance (lazy initialization)
+ */
+function getOpenAIClient() {
+  if (!openai && env.openai.apiKey) {
+    openai = new OpenAI({
+      apiKey: env.openai.apiKey
+    });
+  }
+  return openai;
+}
 
 const TRANSCRIPTION_CACHE_DIR = path.join(__dirname, "../../.cache/transcriptions");
 
@@ -62,7 +72,9 @@ async function downloadAudioFile(url, outputPath) {
  */
 async function transcribeAudio(audioPath, recordingSid) {
   try {
-    if (!env.openai.apiKey) {
+    const client = getOpenAIClient();
+    
+    if (!client) {
       console.warn("OpenAI API key not configured. Using fallback transcription.");
       return "Transcription not available (OpenAI API key missing)";
     }
@@ -71,7 +83,7 @@ async function transcribeAudio(audioPath, recordingSid) {
 
     const audioStream = fs.createReadStream(audioPath);
 
-    const transcript = await openai.audio.transcriptions.create({
+    const transcript = await client.audio.transcriptions.create({
       file: audioStream,
       model: "whisper-1",
       language: "en",
