@@ -8,6 +8,9 @@ const elements = {
   apiDot: document.querySelector("#apiDot"),
   apiStatus: document.querySelector("#apiStatus"),
   apiService: document.querySelector("#apiService"),
+  fleetbaseDot: document.querySelector("#fleetbaseDot"),
+  fleetbaseStatus: document.querySelector("#fleetbaseStatus"),
+  fleetbaseService: document.querySelector("#fleetbaseService"),
   orderForm: document.querySelector("#orderForm"),
   ordersList: document.querySelector("#ordersList"),
   orderCount: document.querySelector("#orderCount"),
@@ -65,6 +68,19 @@ async function checkHealth() {
     elements.apiDot.className = "status-dot offline";
     elements.apiStatus.textContent = "API offline";
     elements.apiService.textContent = error.message;
+  }
+}
+
+async function checkFleetbase() {
+  try {
+    const status = await api("/api/integrations/fleetbase/status");
+    elements.fleetbaseDot.className = `status-dot ${status.reachable ? "online" : "offline"}`;
+    elements.fleetbaseStatus.textContent = status.reachable ? "Fleetbase reachable" : "Fleetbase offline";
+    elements.fleetbaseService.textContent = status.baseUrl || status.reason || "Not configured";
+  } catch (error) {
+    elements.fleetbaseDot.className = "status-dot offline";
+    elements.fleetbaseStatus.textContent = "Fleetbase check failed";
+    elements.fleetbaseService.textContent = error.message;
   }
 }
 
@@ -277,4 +293,5 @@ elements.refreshButton.addEventListener("click", loadOrders);
 elements.sampleButton.addEventListener("click", loadSample);
 
 checkHealth();
+checkFleetbase();
 loadOrders();

@@ -1,0 +1,3 @@
+[submodule "external/fleetbase"]
+	path = external/fleetbase
+	url = https://github.com/fleetbase/fleetbase

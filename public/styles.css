@@ -117,6 +117,7 @@ input {
   gap: 12px;
   padding: 14px;
   border-radius: 8px;
+  margin-top: 12px;
 }
 
 .status-dot {

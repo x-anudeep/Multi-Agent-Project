@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const integrationsRoutes = require("./routes/integrationsRoutes");
 const ordersRoutes = require("./routes/ordersRoutes");
 const { errorHandler } = require("./middleware/errorHandler");
 
@@ -12,6 +13,7 @@ function createApp() {
     res.json({ status: "ok", service: "multi-agent-logistics-backend" });
   });
 
+  app.use("/api/integrations", integrationsRoutes);
   app.use("/api/orders", ordersRoutes);
   app.use(errorHandler);
 

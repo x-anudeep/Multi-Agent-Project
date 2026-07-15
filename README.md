@@ -211,11 +211,25 @@ http://localhost:3000
 ## Endpoints
 
 - `GET /health`
+- `GET /api/integrations/fleetbase/status`
 - `POST /api/orders`
 - `GET /api/orders`
 - `GET /api/orders/:id`
 - `POST /api/orders/:orderId/quotes`
 - `GET /api/orders/:orderId/quotes`
+
+## Fleetbase
+
+Fleetbase is included as a Git submodule at `external/fleetbase`.
+
+```bash
+npm run fleetbase:start
+npm run fleetbase:status
+```
+
+Fleetbase Console runs at `http://localhost:4200`, and Fleetbase API runs at
+`http://localhost:8000`. Full setup steps are in
+`docs/fleetbase-integration.md`.
 
 ---
 

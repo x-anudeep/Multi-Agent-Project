@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "test": "node --test test/*.test.js",
+    "fleetbase:start": "git submodule update --init external/fleetbase && node scripts/fleetbase-compose.js up -d",
+    "fleetbase:stop": "node scripts/fleetbase-compose.js down",
+    "fleetbase:logs": "node scripts/fleetbase-compose.js logs -f --tail=150",
+    "fleetbase:status": "node scripts/check-fleetbase.js"
   },
   "keywords": [
     "logistics",

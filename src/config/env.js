@@ -6,7 +6,8 @@ const env = {
   databaseUrl: process.env.DATABASE_URL || "",
   fleetbase: {
     baseUrl: process.env.FLEETBASE_BASE_URL || "",
-    apiKey: process.env.FLEETBASE_API_KEY || ""
+    apiKey: process.env.FLEETBASE_API_KEY || "",
+    orderEndpoint: process.env.FLEETBASE_ORDER_ENDPOINT || "/orders"
   }
 };
 

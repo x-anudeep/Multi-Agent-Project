@@ -4,10 +4,53 @@ class FleetbaseClient {
   constructor(options = {}) {
     this.baseUrl = options.baseUrl || env.fleetbase.baseUrl;
     this.apiKey = options.apiKey || env.fleetbase.apiKey;
+    this.orderEndpoint = options.orderEndpoint || env.fleetbase.orderEndpoint;
   }
 
   isConfigured() {
     return Boolean(this.baseUrl && this.apiKey);
+  }
+
+  url(path) {
+    return `${this.baseUrl.replace(/\/$/, "")}/${String(path).replace(/^\//, "")}`;
+  }
+
+  headers() {
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.apiKey}`
+    };
+  }
+
+  async status() {
+    if (!this.baseUrl) {
+      return {
+        configured: false,
+        reachable: false,
+        reason: "FLEETBASE_BASE_URL is not configured"
+      };
+    }
+
+    try {
+      const response = await fetch(this.url("/"), {
+        method: "GET",
+        headers: this.apiKey ? this.headers() : { "Content-Type": "application/json" }
+      });
+
+      return {
+        configured: this.isConfigured(),
+        reachable: response.ok || response.status < 500,
+        statusCode: response.status,
+        baseUrl: this.baseUrl
+      };
+    } catch (error) {
+      return {
+        configured: this.isConfigured(),
+        reachable: false,
+        baseUrl: this.baseUrl,
+        reason: error.message
+      };
+    }
   }
 
   async createOrder(order) {
@@ -18,12 +61,9 @@ class FleetbaseClient {
       };
     }
 
-    const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/orders`, {
+    const response = await fetch(this.url(this.orderEndpoint), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`
-      },
+      headers: this.headers(),
       body: JSON.stringify({
         customer: {
           name: order.customerName,
