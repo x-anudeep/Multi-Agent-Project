@@ -232,6 +232,11 @@ function extractShipmentFromTriage(triageResult) {
  * @returns {Promise<string|null>} Existing order ID or null
  */
 async function checkForDuplicate(shipmentData, source, metadata) {
+  if (env.disableDuplicateCheck) {
+    console.warn("Duplicate check disabled via DISABLE_DUPLICATE_CHECK. Skipping.");
+    return null;
+  }
+
   try {
     const customerEmail = metadata.email || metadata.senderEmail;
     const customerPhone = metadata.phone || metadata.callerPhone;
