@@ -144,7 +144,7 @@ async function processIntake(input) {
     console.log("Step 5: Creating order...");
     const orderResult = await callApi("/api/orders", {
       customer: {
-        name: shipmentData.customerName || "Unknown Customer",
+        name: metadata.name || shipmentData.customerName || "Unknown Customer",
         email: metadata.email || metadata.senderEmail || ""
       },
       shipment: {
@@ -325,7 +325,7 @@ async function processEmail(emailData) {
 async function processTranscription(transcriptionData) {
   console.log("Processing transcription intake...");
 
-  const { cleanedTranscript, callerPhone, timestamp } = transcriptionData;
+  const { cleanedTranscript, callerPhone, timestamp, matchedEmail, matchedName } = transcriptionData;
 
   return processIntake({
     text: cleanedTranscript,
@@ -333,7 +333,9 @@ async function processTranscription(transcriptionData) {
     metadata: {
       phone: callerPhone,
       callerPhone,
-      timestamp
+      timestamp,
+      ...(matchedEmail ? { email: matchedEmail } : {}),
+      ...(matchedName ? { name: matchedName } : {})
     }
   });
 }

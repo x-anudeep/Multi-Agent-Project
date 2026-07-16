@@ -25,6 +25,9 @@ const env = {
     phoneNumber: process.env.TWILIO_PHONE_NUMBER || "",
     webhookUrl: process.env.TWILIO_WEBHOOK_URL || ""
   },
+  customerLookup: {
+    csvPath: process.env.CUSTOMER_CSV_PATH || "data/customers.csv"
+  },
   imap: {
     email: process.env.OUTLOOK_EMAIL || "",
     password: process.env.OUTLOOK_PASSWORD || "",

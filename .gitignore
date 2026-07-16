@@ -5,3 +5,7 @@ coverage/
 npm-debug.log*
 quotes/
 .cache/
+
+# Real customer phone/email lookup data -- copy data/customers.example.csv
+# to data/customers.csv and fill in real rows locally; never commit it.
+data/customers.csv

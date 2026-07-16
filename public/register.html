@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Complete Your Registration</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+      .register-shell {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .register-card {
+        width: 100%;
+        max-width: 420px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        border-radius: 12px;
+        padding: 28px;
+      }
+      .register-card h1 {
+        margin: 0 0 6px;
+        font-size: 1.3rem;
+      }
+      .register-card p.subtitle {
+        margin: 0 0 20px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .field {
+        margin-bottom: 14px;
+      }
+      .field label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .field input {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface-2);
+        color: var(--text);
+      }
+      button[type="submit"] {
+        width: 100%;
+        padding: 12px;
+        border-radius: 8px;
+        border: none;
+        background: var(--accent);
+        color: #06251c;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button[type="submit"]:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .message {
+        margin-top: 16px;
+        font-size: 0.9rem;
+      }
+      .message.success { color: var(--accent); }
+      .message.error { color: var(--danger); }
+    </style>
+  </head>
+  <body>
+    <div class="register-shell">
+      <div class="register-card">
+        <h1>Get Your Shipment Quote</h1>
+        <p class="subtitle">
+          We couldn't match your call to an account on file. Enter your details
+          below and we'll email your quote right away.
+        </p>
+
+        <form id="registerForm">
+          <div class="field">
+            <label for="name">Full name</label>
+            <input id="name" name="name" type="text" required>
+          </div>
+          <div class="field">
+            <label for="email">Email address</label>
+            <input id="email" name="email" type="email" required>
+          </div>
+          <div class="field">
+            <label for="phone">Phone number</label>
+            <input id="phone" name="phone" type="tel" required>
+          </div>
+          <button type="submit" id="submitBtn">Send My Quote</button>
+        </form>
+
+        <div id="message" class="message" role="status"></div>
+      </div>
+    </div>
+
+    <script>
+      const token = window.location.pathname.split("/").filter(Boolean).pop();
+      const form = document.getElementById("registerForm");
+      const submitBtn = document.getElementById("submitBtn");
+      const messageEl = document.getElementById("message");
+      const phoneInput = document.getElementById("phone");
+
+      function showMessage(text, kind) {
+        messageEl.textContent = text;
+        messageEl.className = `message ${kind}`;
+      }
+
+      async function loadStatus() {
+        try {
+          const response = await fetch(`/api/registration/${token}`);
+          const body = await response.json();
+
+          if (!response.ok) {
+            showMessage(body.error?.message || "This registration link is invalid.", "error");
+            form.style.display = "none";
+            return;
+          }
+
+          if (body.data.status === "completed") {
+            showMessage("This registration link has already been used.", "success");
+            form.style.display = "none";
+            return;
+          }
+
+          if (body.data.phone) {
+            phoneInput.value = body.data.phone;
+          }
+        } catch (error) {
+          showMessage("Unable to load this registration link right now.", "error");
+        }
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        submitBtn.disabled = true;
+        showMessage("", "");
+
+        try {
+          const response = await fetch(`/api/registration/${token}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: form.name.value,
+              email: form.email.value,
+              phone: form.phone.value
+            })
+          });
+          const body = await response.json();
+
+          if (!response.ok) {
+            showMessage(body.error?.message || "Something went wrong. Please try again.", "error");
+            submitBtn.disabled = false;
+            return;
+          }
+
+          showMessage("Thanks! Your quote is on its way to your email.", "success");
+          form.style.display = "none";
+        } catch (error) {
+          showMessage("Something went wrong. Please try again.", "error");
+          submitBtn.disabled = false;
+        }
+      });
+
+      loadStatus();
+    </script>
+  </body>
+</html>

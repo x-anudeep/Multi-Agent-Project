@@ -17,6 +17,7 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const { createApp } = require("../src/app");
 const orderIntakeService = require("../src/services/orderIntakeService");
+const registrationService = require("../src/services/registrationService");
 const { env } = require("../src/config/env");
 
 let server;
@@ -35,10 +36,21 @@ test.before(() => {
   savedEnv.groqKey = env.groq.apiKey;
   savedEnv.smtpUser = env.smtp.user;
   savedEnv.smtpPassword = env.smtp.password;
+  savedEnv.twilioAccountSid = env.twilio.accountSid;
+  savedEnv.twilioAuthToken = env.twilio.authToken;
+  savedEnv.customerCsvPath = env.customerLookup.csvPath;
   env.openai.apiKey = "";
   env.groq.apiKey = "";
   env.smtp.user = "";
   env.smtp.password = "";
+  // smsService caches its Twilio client in a module-level variable the first
+  // time it's created (same caveat as emailService's transporter above), so
+  // this must be forced off before any test can trigger a real SMS send.
+  env.twilio.accountSid = "";
+  env.twilio.authToken = "";
+  // data/customers.csv is gitignored (real customer data, populated locally);
+  // tests use the always-committed dummy template instead.
+  env.customerLookup.csvPath = "data/customers.example.csv";
 
   const app = createApp();
   server = app.listen(0);
@@ -55,6 +67,9 @@ test.after(() => {
   env.groq.apiKey = savedEnv.groqKey;
   env.smtp.user = savedEnv.smtpUser;
   env.smtp.password = savedEnv.smtpPassword;
+  env.twilio.accountSid = savedEnv.twilioAccountSid;
+  env.twilio.authToken = savedEnv.twilioAuthToken;
+  env.customerLookup.csvPath = savedEnv.customerCsvPath;
 });
 
 async function api(path, options = {}) {
@@ -118,6 +133,83 @@ test("phone-to-order: Gather speech intake creates an order", async () => {
   assert.equal(created.origin, "Chicago");
   assert.equal(created.destination, "Denver");
   assert.equal(created.weightKg, 500);
+});
+
+test("phone-match: caller found in the customer CSV gets their order emailed automatically", async () => {
+  const callSid = "CA-e2e-phone-match-1";
+  const from = "+15551234567"; // matches data/customers.example.csv -> jane.doe@example.com
+
+  await apiForm("/api/integrations/twilio/voice-webhook", {
+    From: from,
+    To: "+15559998888",
+    CallSid: callSid
+  });
+
+  await apiForm("/api/integrations/twilio/speech-result", {
+    SpeechResult: "Pick up 800 kg from Phoenix to Los Angeles",
+    Confidence: "0.9",
+    CallSid: callSid,
+    From: from
+  });
+
+  const created = await waitFor(async () => {
+    const { body: orders } = await api("/api/orders");
+    return orders.data.find((order) => order.rawRequest?.metadata?.callerPhone === from);
+  });
+
+  assert.ok(created, "expected an order created from the phone call");
+  assert.equal(created.customerEmail, "jane.doe@example.com");
+  assert.equal(created.customerName, "Jane Doe");
+});
+
+test("phone-no-match + registration: caller not in the CSV completes a link and the held quote sends", async () => {
+  const callSid = "CA-e2e-phone-no-match-1";
+  const from = "+15550002222"; // not in data/customers.example.csv
+
+  await apiForm("/api/integrations/twilio/voice-webhook", {
+    From: from,
+    To: "+15559998888",
+    CallSid: callSid
+  });
+
+  await apiForm("/api/integrations/twilio/speech-result", {
+    SpeechResult: "Pick up 900 kg from Phoenix to Denver",
+    Confidence: "0.9",
+    CallSid: callSid,
+    From: from
+  });
+
+  const created = await waitFor(async () => {
+    const { body: orders } = await api("/api/orders");
+    return orders.data.find((order) => order.rawRequest?.metadata?.callerPhone === from);
+  });
+
+  assert.ok(created, "expected an order created from the phone call");
+  assert.equal(created.customerEmail, "", "unmatched caller's order shouldn't have an email yet");
+
+  // Registration link is normally texted to the caller; the SMS itself is
+  // skipped in tests (Twilio creds forced off above), so create the link
+  // directly the same way the SMS body would have pointed to it.
+  const { token } = await registrationService.createRegistrationLink(created.id, from);
+
+  const { status, body: registerBody } = await api(`/api/registration/${token}`, {
+    method: "POST",
+    body: JSON.stringify({ name: "Austin Caller", email: "e2e-registered@example.com", phone: from })
+  });
+  assert.equal(status, 200);
+  assert.equal(registerBody.data.orderId, created.id);
+  assert.ok(registerBody.data.delivery, "expected registration to retry the held delivery");
+  assert.equal(registerBody.data.delivery.emailResult.skipped, true); // SMTP forced unconfigured for this whole file
+
+  const { body: updatedOrder } = await api(`/api/orders/${created.id}`);
+  assert.equal(updatedOrder.data.customerEmail, "e2e-registered@example.com");
+  assert.equal(updatedOrder.data.customerName, "Austin Caller");
+
+  const reuseAttempt = await api(`/api/registration/${token}`, {
+    method: "POST",
+    body: JSON.stringify({ name: "Austin Caller", email: "e2e-registered@example.com", phone: from })
+  });
+  assert.equal(reuseAttempt.status, 409);
 });
 
 test("email-to-order: complete email creates an order", async () => {

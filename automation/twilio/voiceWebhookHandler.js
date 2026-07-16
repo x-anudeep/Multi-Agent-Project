@@ -10,6 +10,9 @@ const { env } = require("../../src/config/env");
 const whisperService = require("../speech_processing/whisperService");
 const orderIntakeService = require("../../src/services/orderIntakeService");
 const { triage } = require("../../src/services/agentService");
+const customerLookupService = require("../../src/services/customerLookupService");
+const registrationService = require("../../src/services/registrationService");
+const smsService = require("./smsService");
 
 // Per-call conversation state, keyed by CallSid. A single Node process is
 // fine for local/dev use; a multi-instance deployment would need shared state.
@@ -84,6 +87,37 @@ async function handleInboundCall(req, res) {
 }
 
 /**
+ * Match the caller against the customer CSV, create the order, and -- if
+ * there was no match -- text the caller a registration link so the quote
+ * (already generated, just missing a recipient) can be sent once they
+ * submit their email.
+ */
+async function processCallIntake({ from, transcript }) {
+  const matchedCustomer = customerLookupService.findByPhone(from);
+
+  const intakeResult = await orderIntakeService.processTranscription({
+    cleanedTranscript: transcript,
+    callerPhone: from,
+    timestamp: new Date().toISOString(),
+    matchedEmail: matchedCustomer?.email,
+    matchedName: matchedCustomer?.name
+  });
+
+  console.log("Order intake result:", {
+    success: intakeResult.success,
+    status: intakeResult.status,
+    orderId: intakeResult.orderId
+  });
+
+  if (intakeResult.success && !matchedCustomer) {
+    const { link } = await registrationService.createRegistrationLink(intakeResult.orderId, from);
+    await smsService.sendRegistrationSms({ to: from, link });
+  }
+
+  return intakeResult;
+}
+
+/**
  * Finalize a call: respond to Twilio immediately, then create the order
  * (or flag it for review) asynchronously from the accumulated transcript.
  */
@@ -102,20 +136,9 @@ function finalizeCall(res, { callSid, from, transcript, isComplete }) {
 
   if (!transcript) return;
 
-  orderIntakeService
-    .processTranscription({
-      cleanedTranscript: transcript,
-      callerPhone: from,
-      timestamp: new Date().toISOString()
-    })
-    .then((intakeResult) => {
-      console.log("Order intake result:", {
-        success: intakeResult.success,
-        status: intakeResult.status,
-        orderId: intakeResult.orderId
-      });
-    })
-    .catch((error) => console.error("Error processing speech intake:", error));
+  processCallIntake({ from, transcript }).catch((error) =>
+    console.error("Error processing speech intake:", error)
+  );
 }
 
 /**

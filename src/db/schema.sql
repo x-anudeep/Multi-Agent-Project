@@ -88,6 +88,17 @@ CREATE TABLE IF NOT EXISTS order_review_queue (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Pending registrations: correlates a "no phone match" caller's SMS
+-- registration link back to the order/quote it should attach an email to.
+CREATE TABLE IF NOT EXISTS pending_registrations (
+  token UUID PRIMARY KEY,
+  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+  phone TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_quotes_order_id ON quotes(order_id);
 CREATE INDEX IF NOT EXISTS idx_speech_transcriptions_recording_sid ON speech_transcriptions(recording_sid);
@@ -95,3 +106,4 @@ CREATE INDEX IF NOT EXISTS idx_speech_transcriptions_status ON speech_transcript
 CREATE INDEX IF NOT EXISTS idx_delivery_logs_order_id ON delivery_logs(order_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_logs_status ON delivery_logs(status);
 CREATE INDEX IF NOT EXISTS idx_order_review_queue_status ON order_review_queue(status);
+CREATE INDEX IF NOT EXISTS idx_pending_registrations_order_id ON pending_registrations(order_id);
