@@ -23,7 +23,11 @@ const env = {
     accountSid: process.env.TWILIO_ACCOUNT_SID || "",
     authToken: process.env.TWILIO_AUTH_TOKEN || "",
     phoneNumber: process.env.TWILIO_PHONE_NUMBER || "",
-    webhookUrl: process.env.TWILIO_WEBHOOK_URL || ""
+    webhookUrl: process.env.TWILIO_WEBHOOK_URL || "",
+    // The number/messaging-service sender that can actually send/receive SMS
+    // on this account (may differ from phoneNumber, which can be voice-only
+    // or blocked from outbound SMS by trial-account template restrictions).
+    messagingNumber: process.env.TWILIO_MESSAGING_NUMBER || ""
   },
   customerLookup: {
     csvPath: process.env.CUSTOMER_CSV_PATH || "data/customers.csv"

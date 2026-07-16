@@ -460,6 +460,22 @@ Fleetbase setup details:
 docs/fleetbase-integration.md
 ```
 
+## Phone-to-Email Quote Matching
+
+Inbound calls are matched against a CSV of known customers (`data/customers.csv`, gitignored -- copy `data/customers.example.csv` and fill in real rows locally, path configurable via `CUSTOMER_CSV_PATH`):
+
+- **Match found**: the caller's email is attached to the order at creation time, so the auto-generated quote is emailed immediately.
+- **No match**: the order and quote are still created, but delivery is held (no recipient email yet). The caller is told by voice to text the messaging number; texting in looks up their pending registration and replies with a link (`/register/:token`) to submit name/email/phone, which attaches the email to the order and resends the held quote.
+
+### Known Issue: Twilio Trial Messaging Is Blocked
+
+The SMS half of this flow (texting the registration link) is fully implemented and covered by automated tests, but **could not be demoed live** on the current Twilio trial account. Both directions fail, for two separate reasons:
+
+- `TWILIO_PHONE_NUMBER` (a toll-free number) needs **Toll-Free Verification** before it can send any SMS. Until verified, Twilio's Console routes messaging tests to a separate auto-assigned sandbox number instead.
+- That sandbox number is a regular 10DLC local number, and **trial accounts cannot register for A2P 10DLC**. US carriers silently filter unregistered A2P traffic on 10DLC numbers at the network level -- this blocks both proactive (`messages.create()`) sends and TwiML `<Message>` replies equally, with no error surfaced back through Twilio's API.
+
+This is a carrier/account-level compliance restriction, not a bug -- the CSV-match path (call in with a number that's in `customers.csv`) was demoed live end-to-end, including a real email delivery. Fixing SMS delivery requires completing Toll-Free Verification or upgrading off trial and completing A2P 10DLC registration; both are outside a coding session and are left for later.
+
 ## Tech Stack
 
 Implemented:

@@ -17,7 +17,6 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const { createApp } = require("../src/app");
 const orderIntakeService = require("../src/services/orderIntakeService");
-const registrationService = require("../src/services/registrationService");
 const { env } = require("../src/config/env");
 
 let server;
@@ -36,18 +35,11 @@ test.before(() => {
   savedEnv.groqKey = env.groq.apiKey;
   savedEnv.smtpUser = env.smtp.user;
   savedEnv.smtpPassword = env.smtp.password;
-  savedEnv.twilioAccountSid = env.twilio.accountSid;
-  savedEnv.twilioAuthToken = env.twilio.authToken;
   savedEnv.customerCsvPath = env.customerLookup.csvPath;
   env.openai.apiKey = "";
   env.groq.apiKey = "";
   env.smtp.user = "";
   env.smtp.password = "";
-  // smsService caches its Twilio client in a module-level variable the first
-  // time it's created (same caveat as emailService's transporter above), so
-  // this must be forced off before any test can trigger a real SMS send.
-  env.twilio.accountSid = "";
-  env.twilio.authToken = "";
   // data/customers.csv is gitignored (real customer data, populated locally);
   // tests use the always-committed dummy template instead.
   env.customerLookup.csvPath = "data/customers.example.csv";
@@ -67,8 +59,6 @@ test.after(() => {
   env.groq.apiKey = savedEnv.groqKey;
   env.smtp.user = savedEnv.smtpUser;
   env.smtp.password = savedEnv.smtpPassword;
-  env.twilio.accountSid = savedEnv.twilioAccountSid;
-  env.twilio.authToken = savedEnv.twilioAuthToken;
   env.customerLookup.csvPath = savedEnv.customerCsvPath;
 });
 
@@ -187,10 +177,16 @@ test("phone-no-match + registration: caller not in the CSV completes a link and 
   assert.ok(created, "expected an order created from the phone call");
   assert.equal(created.customerEmail, "", "unmatched caller's order shouldn't have an email yet");
 
-  // Registration link is normally texted to the caller; the SMS itself is
-  // skipped in tests (Twilio creds forced off above), so create the link
-  // directly the same way the SMS body would have pointed to it.
-  const { token } = await registrationService.createRegistrationLink(created.id, from);
+  // The IVR tells an unmatched caller to text the messaging number; texting
+  // in is what actually triggers the reply (not a proactive outbound send),
+  // so simulate that inbound SMS and pull the token out of the TwiML reply.
+  const smsReply = await apiForm("/api/integrations/twilio/sms-inbound", { From: from, Body: "hi" });
+  assert.equal(smsReply.status, 200);
+  assert.match(smsReply.text, /<Message>/, "expected a reply since a pending registration exists");
+  assert.match(smsReply.text, new RegExp(created.id));
+
+  const [, token] = smsReply.text.match(/\/register\/([a-f0-9-]+)/) || [];
+  assert.ok(token, "expected a registration token in the SMS reply link");
 
   const { status, body: registerBody } = await api(`/api/registration/${token}`, {
     method: "POST",
@@ -210,6 +206,15 @@ test("phone-no-match + registration: caller not in the CSV completes a link and 
     body: JSON.stringify({ name: "Austin Caller", email: "e2e-registered@example.com", phone: from })
   });
   assert.equal(reuseAttempt.status, 409);
+});
+
+test("sms-inbound: texting in with no pending registration gets no reply", async () => {
+  const smsReply = await apiForm("/api/integrations/twilio/sms-inbound", {
+    From: "+15559990000", // never called in, so no pending registration exists
+    Body: "hi"
+  });
+  assert.equal(smsReply.status, 200);
+  assert.doesNotMatch(smsReply.text, /<Message>/);
 });
 
 test("email-to-order: complete email creates an order", async () => {

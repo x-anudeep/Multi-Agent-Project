@@ -12,7 +12,6 @@ const orderIntakeService = require("../../src/services/orderIntakeService");
 const { triage } = require("../../src/services/agentService");
 const customerLookupService = require("../../src/services/customerLookupService");
 const registrationService = require("../../src/services/registrationService");
-const smsService = require("./smsService");
 
 // Per-call conversation state, keyed by CallSid. A single Node process is
 // fine for local/dev use; a multi-instance deployment would need shared state.
@@ -87,14 +86,12 @@ async function handleInboundCall(req, res) {
 }
 
 /**
- * Match the caller against the customer CSV, create the order, and -- if
- * there was no match -- text the caller a registration link so the quote
- * (already generated, just missing a recipient) can be sent once they
- * submit their email.
+ * Create the order (using the CSV-matched email if there was one) and --
+ * if there wasn't a match -- create a pending registration so that once the
+ * caller texts the messaging number, the SMS-reply webhook can find it and
+ * send back a registration link for the quote that's already been generated.
  */
-async function processCallIntake({ from, transcript }) {
-  const matchedCustomer = customerLookupService.findByPhone(from);
-
+async function processCallIntake({ from, transcript, matchedCustomer }) {
   const intakeResult = await orderIntakeService.processTranscription({
     cleanedTranscript: transcript,
     callerPhone: from,
@@ -110,8 +107,7 @@ async function processCallIntake({ from, transcript }) {
   });
 
   if (intakeResult.success && !matchedCustomer) {
-    const { link } = await registrationService.createRegistrationLink(intakeResult.orderId, from);
-    await smsService.sendRegistrationSms({ to: from, link });
+    await registrationService.createRegistrationLink(intakeResult.orderId, from);
   }
 
   return intakeResult;
@@ -120,15 +116,27 @@ async function processCallIntake({ from, transcript }) {
 /**
  * Finalize a call: respond to Twilio immediately, then create the order
  * (or flag it for review) asynchronously from the accumulated transcript.
+ * The caller's phone is already known to be matched or not by this point,
+ * so an unmatched caller is told (by voice) to text in for their quote.
  */
-function finalizeCall(res, { callSid, from, transcript, isComplete }) {
+function finalizeCall(res, { callSid, from, transcript, isComplete, matchedCustomer }) {
   const response = new twilio.twiml.VoiceResponse();
-  response.say(
-    isComplete
-      ? "Thank you. We have everything we need and are preparing your quote now."
-      : "Thanks for the details. A member of our team will follow up shortly to confirm your shipment.",
-    { voice: "alice" }
-  );
+
+  if (isComplete && !matchedCustomer) {
+    response.say(
+      "Thank you. We have everything we need, but we couldn't find an account for this number. " +
+        `To receive your quote by email, please text the word hi to ${env.twilio.messagingNumber} ` +
+        "and we'll send you a registration link.",
+      { voice: "alice" }
+    );
+  } else {
+    response.say(
+      isComplete
+        ? "Thank you. We have everything we need and are preparing your quote now."
+        : "Thanks for the details. A member of our team will follow up shortly to confirm your shipment.",
+      { voice: "alice" }
+    );
+  }
   response.hangup();
   res.type("text/xml").send(response.toString());
 
@@ -136,7 +144,7 @@ function finalizeCall(res, { callSid, from, transcript, isComplete }) {
 
   if (!transcript) return;
 
-  processCallIntake({ from, transcript }).catch((error) =>
+  processCallIntake({ from, transcript, matchedCustomer }).catch((error) =>
     console.error("Error processing speech intake:", error)
   );
 }
@@ -178,7 +186,8 @@ async function handleSpeechResult(req, res) {
   const missingFields = triageResult?.triage?.missingFields || [];
 
   if (isComplete || session.turns >= MAX_CONVERSATION_TURNS) {
-    finalizeCall(res, { callSid: CallSid, from: From, transcript: session.transcript, isComplete });
+    const matchedCustomer = customerLookupService.findByPhone(From);
+    finalizeCall(res, { callSid: CallSid, from: From, transcript: session.transcript, isComplete, matchedCustomer });
     return;
   }
 

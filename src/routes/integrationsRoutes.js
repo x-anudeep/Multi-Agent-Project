@@ -10,5 +10,6 @@ router.post("/twilio/voice-webhook", integrationsController.twilioVoiceWebhook);
 router.post("/twilio/speech-result", integrationsController.twilioSpeechResultWebhook);
 router.post("/twilio/recording-webhook", integrationsController.twilioRecordingWebhook);
 router.post("/twilio/transcription-webhook", integrationsController.twilioTranscriptionWebhook);
+router.post("/twilio/sms-inbound", integrationsController.twilioSmsInboundWebhook);
 
 module.exports = router;

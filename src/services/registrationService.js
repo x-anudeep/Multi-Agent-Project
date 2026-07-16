@@ -31,6 +31,11 @@ function conflict(message) {
   return error;
 }
 
+function buildLink(token) {
+  const base = (env.twilio.webhookUrl || "").replace(/\/$/, "");
+  return `${base}/register/${token}`;
+}
+
 /**
  * @param {string} orderId - Order created from the caller's transcript.
  * @param {string} phone - Caller's phone number.
@@ -38,8 +43,7 @@ function conflict(message) {
  */
 async function createRegistrationLink(orderId, phone) {
   const registration = await registrationRepository.createRegistration({ orderId, phone });
-  const base = (env.twilio.webhookUrl || "").replace(/\/$/, "");
-  return { token: registration.token, link: `${base}/register/${registration.token}` };
+  return { token: registration.token, link: buildLink(registration.token) };
 }
 
 async function getRegistration(token) {
@@ -48,6 +52,17 @@ async function getRegistration(token) {
     throw notFound("Registration link not found or expired");
   }
   return registration;
+}
+
+/**
+ * Look up the most recent still-pending registration for a phone number --
+ * used when a caller texts in to retrieve the link that was created for
+ * their call.
+ * @param {string} phone
+ * @returns {Promise<Object|null>}
+ */
+async function getPendingRegistrationForPhone(phone) {
+  return registrationRepository.findLatestPendingByPhone(phone);
 }
 
 /**
@@ -89,5 +104,7 @@ async function completeRegistration(token, { name, email, phone }) {
 module.exports = {
   createRegistrationLink,
   getRegistration,
-  completeRegistration
+  getPendingRegistrationForPhone,
+  completeRegistration,
+  buildLink
 };

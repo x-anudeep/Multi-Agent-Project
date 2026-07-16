@@ -49,6 +49,29 @@ async function findByToken(token) {
   return normalizeRow(result.rows[0] || null);
 }
 
+/**
+ * Most recent still-pending registration for a phone number -- used when a
+ * caller texts in, to look up which order their registration link is for.
+ */
+async function findLatestPendingByPhone(phone) {
+  const pool = getPool();
+
+  if (!pool) {
+    const matches = Array.from(memory.registrations.values())
+      .filter((registration) => registration.phone === phone && registration.status === "pending")
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return matches[0] || null;
+  }
+
+  const result = await pool.query(
+    `SELECT * FROM pending_registrations WHERE phone = $1 AND status = 'pending'
+     ORDER BY created_at DESC LIMIT 1`,
+    [phone]
+  );
+
+  return normalizeRow(result.rows[0] || null);
+}
+
 async function markCompleted(token) {
   const existing = await findByToken(token);
   if (!existing) return null;
@@ -74,5 +97,6 @@ async function markCompleted(token) {
 module.exports = {
   createRegistration,
   findByToken,
+  findLatestPendingByPhone,
   markCompleted
 };
